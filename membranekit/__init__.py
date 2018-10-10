@@ -2,6 +2,8 @@
 
 """
 
+import membranekit.domain
+
 import membranekit.mesh
 from membranekit.mesh import *
 

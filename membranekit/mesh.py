@@ -472,6 +472,18 @@ class Field(object):
             raise TypeError('Field shape is not appropriate for mesh')
 
     @property
+    def mesh(self):
+        """ Mesh corresponding to the field.
+
+        Returns
+        -------
+        :py:obj:`~Mesh`
+            The mesh attached to the field.
+
+        """
+        return self._mesh
+
+    @property
     def shape(self):
         """ Shape of the field.
 
@@ -487,3 +499,6 @@ class Field(object):
 
     def __getitem__(self, index):
         return self._field[index]
+
+    def __setitem__(self, index, item):
+        self._field[index] = item
