@@ -1,6 +1,7 @@
 """ Data structures for manipulating membrane data.
 
 """
+from __future__ import division
 __all__ = ["Mesh"]
 
 import numpy as np
