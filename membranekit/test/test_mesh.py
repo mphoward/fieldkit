@@ -1,4 +1,4 @@
-""" Unit tests for data structures.
+""" Unit tests for mesh-related data structures.
 
 """
 import unittest
@@ -6,7 +6,7 @@ import numpy as np
 import membranekit
 
 class MeshTest(unittest.TestCase):
-    """ Test cases for :py:obj:`~membranekit.data.Mesh`
+    """ Test cases for :py:obj:`~membranekit.mesh.Mesh`
     """
 
     def test_cube(self):
@@ -56,3 +56,44 @@ class MeshTest(unittest.TestCase):
 
         np.testing.assert_almost_equal(mesh.L, mesh2.L)
         np.testing.assert_almost_equal(mesh.tilt, mesh2.tilt)
+
+class FieldTest(unittest.TestCase):
+    """ Test cases for :py:obj:`~membranekit.mesh.Field`
+    """
+    def setUp(self):
+        self.mesh = membranekit.Mesh().from_lattice(N=(2,3,4),L=2.0)
+
+    def test(self):
+        field = membranekit.Field(self.mesh)
+        np.testing.assert_almost_equal(field.field, np.zeros(self.mesh.shape))
+        self.assertAlmostEqual(field[0,0,0], 0.)
+        self.assertEqual(field.shape, self.mesh.shape)
+
+        # change field data via property
+        field.field = np.ones(self.mesh.shape)
+        np.testing.assert_almost_equal(field.field, np.ones(self.mesh.shape))
+        self.assertAlmostEqual(field[0,0,0], 1.)
+
+    def test_from_array(self):
+        """ Test for field creation for a simple array
+        """
+        data = np.ones(self.mesh.shape)
+        field = membranekit.Field(self.mesh).from_array(data)
+        self.assertEqual(field.shape, self.mesh.shape)
+        np.testing.assert_almost_equal(field.field, np.ones(self.mesh.shape))
+
+    def test_multi(self):
+        """ Test common multidimensional layouts for input arrays.
+        """
+        # last index is density
+        data = np.ones(np.append(self.mesh.shape, 2))
+        field = membranekit.Field(self.mesh).from_array(data, index=0, axis=3)
+        self.assertEqual(field.shape, self.mesh.shape)
+        np.testing.assert_almost_equal(field.field, np.ones(self.mesh.shape))
+
+        # first index is density
+        data = np.ones(np.insert(self.mesh.shape, 0, 2))
+        data[1] *= 2.
+        field = membranekit.Field(self.mesh).from_array(data, index=1, axis=0)
+        self.assertEqual(field.shape, self.mesh.shape)
+        np.testing.assert_almost_equal(field.field, np.full(self.mesh.shape,2.))

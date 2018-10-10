@@ -2,9 +2,9 @@
 
 """
 from __future__ import division
-__all__ = ["Mesh"]
-
 import numpy as np
+
+__all__ = ["Mesh","Field"]
 
 class Mesh(object):
     """ Mesh
@@ -143,6 +143,25 @@ class Mesh(object):
 
         return self
 
+    def from_file(self, filename):
+        """ Initialize mesh from a saved NumPy file.
+
+        This method is a convenience wrapper for :py:meth:`from_array`.
+
+        Parameters
+        ----------
+        filename : str
+            NumPy file containing coordinates.
+
+        Returns
+        -------
+        :py:obj:`Mesh`
+            A reference to the mesh object.
+
+        """
+        grid = np.load(filename)
+        return self.from_array(grid)
+
     @property
     def cell_matrix(self):
         r""" Cell matrix corresponding to the periodic cell
@@ -196,6 +215,9 @@ class Mesh(object):
         """
         return self._grid
 
+    def __getitem__(self, index):
+        return self._grid[index]
+
     @property
     def shape(self):
         """ Shape of the mesh.
@@ -245,3 +267,133 @@ class Mesh(object):
 
         """
         return self._tilt
+
+class Field(object):
+    """ Scalar field on a :py:obj:`~Mesh`.
+
+    Parameters
+    ----------
+    mesh : :py:obj:`~Mesh`
+        Mesh used to define the volume for the field.
+
+    Attributes
+    ----------
+    field
+    shape
+
+    Notes
+    -----
+    Values of the field can be accessed directly by index::
+
+        field[0,:,-1]
+
+    """
+    def __init__(self, mesh):
+        self._mesh = mesh
+        self._field = np.zeros(self._mesh.shape)
+
+    def from_array(self, field, index=None, axis=None):
+        """ Initialize field data from an array.
+
+        The `field` data can be a three or four dimensional array.
+        It is copied directly if it is three dimensional, and must
+        match the shape of the `mesh`. If it is four-dimensional,
+        `index` and `axis` can be applied to slice the appropriate
+        data using `np.take()`.
+
+        Parameters
+        ----------
+        field : array_like
+            Array of field data.
+        index : None or int
+            If specified, take from `field` at `index`.
+        axis : None or int
+            If specified, use `axis` when selecting `index` to take.
+
+        Returns
+        -------
+        :py:obj:`~Field`
+            A reference to the field object.
+
+        """
+        field = np.asarray(field)
+        if index is not None:
+            field = field.take(indices=index, axis=axis)
+
+        self.field = field
+        return self
+
+    def from_file(self, filename, index=None, axis=None):
+        """ Initialize field data from a file.
+
+        The `field` data can be a three or four dimensional array.
+        It is copied directly if it is three dimensional, and must
+        match the shape of the `mesh`. If it is four-dimensional,
+        `index` and `axis` can be applied to slice the appropriate
+        data using `np.take()`. This method is a convenience wrapper
+        around :py:meth:`~from_array`.
+
+        Parameters
+        ----------
+        filename : str
+            NumPy file containing the field data.
+        index : None or int
+            If specified, take from `field` at `index`.
+        axis : None or int
+            If specified, use `axis` when selecting `index` to take.
+
+        Returns
+        -------
+        :py:obj:`~Field`
+            A reference to the field object.
+
+        """
+        field = np.load(filename)
+        return self.from_array(field, **kwargs)
+
+    @property
+    def field(self):
+        """ Values of the field on the input mesh.
+        """
+        return self._field
+
+    @field.setter
+    def field(self, field):
+        """ Sets the field from an existing array.
+
+        The shape of the field must be consistent with the
+        mesh the field was initialzed with.
+
+        Parameters
+        ----------
+        field : array_like
+            Three-dimensional field values to set
+
+        Raises
+        ------
+        TypeError
+            If the field shape does not match the mesh shape.
+
+        """
+        field = np.asarray(field)
+        if field.shape == self._mesh.shape:
+            self._field = np.copy(field)
+        else:
+            raise TypeError('Field shape is not appropriate for mesh')
+
+    @property
+    def shape(self):
+        """ Shape of the field.
+
+        The field shape matches the underlying mesh shape.
+
+        Returns
+        -------
+        array_like
+            Tuple giving the number of points along each mesh dimension.
+
+        """
+        return self._field.shape
+
+    def __getitem__(self, index):
+        return self._field[index]
