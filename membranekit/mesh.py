@@ -48,7 +48,8 @@ class Mesh(object):
         """
         N = np.asarray(N, dtype=np.int32)
         try:
-            len(N) == 3
+            if len(N) != 3:
+                raise IndexError('Meshes must be 3D')
         except TypeError:
             N = np.full(3, N, dtype=np.int32)
 
@@ -70,7 +71,7 @@ class Mesh(object):
         else:
             tilt = np.zeros(3)
 
-        # fill grid points using the fractional coordinates and lammps triclinic cell
+        # fill grid points using the fractional coordinates and hoomd/lammps triclinic cell
         self._lattice = np.diag(L)
         self._lattice[0,1] = tilt[0] * L[1]
         self._lattice[0,2] = tilt[1] * L[2]
@@ -109,13 +110,6 @@ class Mesh(object):
         -------
         :py:obj:`Mesh`
             A reference to the mesh object.
-
-        Notes
-        -----
-        The input grid may undergo a change of coordinate system in order
-        to accommodate the triclinic geometries. In particular, the first
-        lattice vector is rotated to point along (Lx, 0, 0). The second
-        lattice vector is then rotated to force the y component to be positive.
 
         """
         grid = np.asarray(grid)
@@ -236,6 +230,21 @@ class Mesh(object):
 
     def neighbors(self, n, full=True):
         """ Get the indexes of neighboring nodes subject to periodic boundaries.
+
+        Parameters
+        ----------
+        n : array_like
+            Tuple giving the index in the mesh to find neighbors for.
+        full : bool
+            If True, return all 6 adjacent neighbors. Otherwise, only
+            return the 3 in the "forward" directions on the lattice.
+
+        Returns
+        -------
+        tuple:
+            A tuple of tuple indexes in the mesh corresponding to the
+            neighbors of `n`.
+
         """
         i,j,k = n
         neighs = [((i+1) % self.shape[0], j, k),
@@ -260,8 +269,8 @@ class Field(object):
     field
     shape
 
-    Notes
-    -----
+    Examples
+    --------
     Values of the field can be accessed directly by index::
 
         field[0,:,-1]
