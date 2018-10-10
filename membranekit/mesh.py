@@ -13,19 +13,15 @@ class Mesh(object):
 
     Attributes
     ----------
-    cell_matrix
     grid
+    lattice
     shape
     dim
-    L
-    tilt
     step : array_like
         Step size of the mesh in each dimension.
 
     """
     def __init__(self):
-        self._L = None
-        self._tilt = None
         self._grid = None
 
     def from_lattice(self, N, L, tilt=None):
@@ -58,29 +54,30 @@ class Mesh(object):
 
         L = np.asarray(L)
         try:
-            if len(L) == len(N):
-                self._L = L
-            else:
+            if len(L) != len(N):
                raise IndexError('Step size must match grid size')
         except TypeError:
-            self._L = np.full(len(N),L)
+            L = np.full(len(N),L)
 
         if tilt is not None:
             try:
                 if len(tilt) == 3:
-                    self._tilt = np.array(tilt)
+                    tilt = np.array(tilt)
                 else:
                     raise TypeError('Tilt factors must be 3D array')
             except:
                 raise TypeError('Tilt factors must be 3D array')
         else:
-            self._tilt = np.zeros(3)
+            tilt = np.zeros(3)
 
-        # fill grid points using the fractional coordinates
-        h = self.cell_matrix
+        # fill grid points using the fractional coordinates and lammps triclinic cell
+        self._lattice = np.diag(L)
+        self._lattice[0,1] = tilt[0] * L[1]
+        self._lattice[0,2] = tilt[1] * L[2]
+        self._lattice[1,2] = tilt[2] * L[2]
         self._grid = np.empty(np.append(N,len(N)))
         for n in np.ndindex(self._grid.shape[:-1]):
-            self._grid[n] = np.dot(h, n/N)
+            self._grid[n] = np.dot(self._lattice, n/N)
 
         # step spacing along each cartesian axis
         self.step = np.zeros(self.dim)
@@ -136,7 +133,7 @@ class Mesh(object):
             dr = self._grid[tuple(index)] - self._grid[tuple(origin)]
             self.step[i] = np.sqrt(np.sum(dr*dr))
 
-        # convert box extent into length and tilt factors
+        # convert box extent into lattice vectors
         a = self._grid[-1,0,0] - self._grid[0,0,0]
         b = self._grid[0,-1,0] - self._grid[0,0,0]
         c = self._grid[0,0,-1] - self._grid[0,0,0]
@@ -144,9 +141,7 @@ class Mesh(object):
         a += self.step[0] * (a / np.linalg.norm(a))
         b += self.step[1] * (b / np.linalg.norm(b))
         c += self.step[2] * (c / np.linalg.norm(c))
-
-        self._L = np.array([a[0], b[1], c[2]])
-        self._tilt = np.array([b[0]/self._L[1], c[0]/self._L[2], c[1]/self._L[2]])
+        self._lattice = np.column_stack((a,b,c))
 
         return self
 
@@ -170,45 +165,23 @@ class Mesh(object):
         return self.from_array(grid)
 
     @property
-    def cell_matrix(self):
+    def lattice(self):
         r""" Cell matrix corresponding to the periodic cell
 
         Gives the matrix `h` that transforms a fractional lattice coordinate
-        to a real-space coordinate in the periodic cell.
+        to a real-space coordinate in the periodic cell. Each column of the
+        matrix is a real-space lattice vector.
 
         Returns
         -------
         h : array_like
             Transformation matrix
 
-        Notes
-        -----
-
-        The mesh :py:attr:`~L` and :py:attr:`~tilt` define a transformation
-        matrix for the periodic simulation cell.
-
-        .. math::
-
-            \begin{pmatrix}
-            L_x & t_{xy} L_y & t_{xz} L_z \\
-            0   &        L_y & t_{yz} L_z \\
-            0   &            &        L_z
-            \end{pmatrix}
-
-        where **L** are the undeformed box lengths and **t**
-        is the vector of tilt factors.
-
         Dotting a fractional coordinate into this matrix yields the real space
         coordinate.
 
         """
-        L = self.L
-        h = np.diag(L)
-        h[0,1] = self.tilt[0] * L[1]
-        h[0,2] = self.tilt[1] * L[2]
-        h[1,2] = self.tilt[2] * L[2]
-
-        return h
+        return self._lattice
 
     @property
     def grid(self):
@@ -251,29 +224,15 @@ class Mesh(object):
 
     @property
     def L(self):
-        """ Length of the undeformed periodic simulation cell.
+        """ Length of the periodic simulation cell along each lattice vector.
 
         Returns
         -------
         array_like:
-            Length of the undeformed simulation cell.
+            Length of the simulation cell.
 
         """
-        return self._L
-
-    @property
-    def tilt(self):
-        """ Fractional tilt factors.
-
-        Returns
-        -------
-        array_like:
-            The fractional tilt factors for a triclinic cell.
-
-        For an orthorhombic simulation cell, all tilt factors are zero.
-
-        """
-        return self._tilt
+        return np.linalg.norm(self.lattice,axis=0)
 
     def neighbors(self, n, full=True):
         """ Get the indexes of neighboring nodes subject to periodic boundaries.
