@@ -2,7 +2,7 @@
 
 """
 
-import membranekit.data
-from membranekit.data import *
+import membranekit.mesh
+from membranekit.mesh import *
 
 import membranekit.test

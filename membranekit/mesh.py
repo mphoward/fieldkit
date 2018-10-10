@@ -17,7 +17,7 @@ class Mesh(object):
     grid
     shape
     dim
-    length
+    L
     tilt
     step : array_like
         Step size of the mesh in each dimension.
@@ -28,19 +28,19 @@ class Mesh(object):
         self._tilt = None
         self._grid = None
 
-    def from_lattice(self, N, length, tilt=None):
+    def from_lattice(self, N, L, tilt=None):
         """ Initialize mesh from a lattice.
 
         `N` lattice points are placed along each lattice vector.
-        The nearest distances between faces are given by `length`
+        The edge lengths of the orthorhombic box are given by `L`,
         and the box is deformed by the `tilt` factors.
 
         Parameters
         ----------
         N : int or array_like
             Number of lattice points.
-        length : float or array_like
-            Nearest distances between edges of the lattice.
+        L : float or array_like
+            Edge lengths of undeformed orthorhombic box.
         tilt : None or array_like
             If specified, the tilt factors for the lattice.
 
@@ -56,7 +56,7 @@ class Mesh(object):
         except TypeError:
             N = np.full(3, N, dtype=np.int32)
 
-        L = np.asarray(length)
+        L = np.asarray(L)
         try:
             if len(L) == len(N):
                 self._L = L
@@ -158,7 +158,7 @@ class Mesh(object):
         Notes
         -----
 
-        The mesh :py:attr:`~length` and :py:attr:`~tilt` define a transformation
+        The mesh :py:attr:`~L` and :py:attr:`~tilt` define a transformation
         matrix for the periodic simulation cell.
 
         .. math::
@@ -169,14 +169,14 @@ class Mesh(object):
             0   &            &        L_z
             \end{pmatrix}
 
-        where **L** is the vector of lengths along each lattice vector and **t**
+        where **L** are the undeformed box lengths and **t**
         is the vector of tilt factors.
 
         Dotting a fractional coordinate into this matrix yields the real space
         coordinate.
 
         """
-        L = self.length
+        L = self.L
         h = np.diag(L)
         h[0,1] = self.tilt[0] * L[1]
         h[0,2] = self.tilt[1] * L[2]
@@ -221,13 +221,13 @@ class Mesh(object):
         return len(self.shape)
 
     @property
-    def length(self):
-        """ Length of the periodic simulation cell.
+    def L(self):
+        """ Length of the undeformed periodic simulation cell.
 
         Returns
         -------
         array_like:
-            Length of the simulation cell along each lattice vector.
+            Length of the undeformed simulation cell.
 
         """
         return self._L
