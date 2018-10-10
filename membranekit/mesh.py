@@ -113,6 +113,13 @@ class Mesh(object):
         :py:obj:`Mesh`
             A reference to the mesh object.
 
+        Notes
+        -----
+        The input grid may undergo a change of coordinate system in order
+        to accommodate the triclinic geometries. In particular, the first
+        lattice vector is rotated to point along (Lx, 0, 0). The second
+        lattice vector is then rotated to force the y component to be positive.
+
         """
         grid = np.asarray(grid)
         self._grid = np.copy(grid)
@@ -268,6 +275,19 @@ class Mesh(object):
         """
         return self._tilt
 
+    def neighbors(self, n, full=True):
+        """ Get the indexes of neighboring nodes subject to periodic boundaries.
+        """
+        i,j,k = n
+        neighs = [((i+1) % self.shape[0], j, k),
+                  (i, (j+1) % self.shape[1], k),
+                  (i, j, (k+1) % self.shape[2])]
+        if full:
+            neighs += [((i-1) % self.shape[0], j, k),
+                       (i, (j-1) % self.shape[1], k),
+                       (i, j, (k-1) % self.shape[2])]
+        return tuple(neighs)
+
 class Field(object):
     """ Scalar field on a :py:obj:`~Mesh`.
 
@@ -349,7 +369,7 @@ class Field(object):
 
         """
         field = np.load(filename)
-        return self.from_array(field, **kwargs)
+        return self.from_array(field, index, axis)
 
     @property
     def field(self):
