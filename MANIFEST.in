@@ -1,1 +1,1 @@
-recursive-include membranekit *.py
+recursive-include fieldkit *.py
