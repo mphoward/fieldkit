@@ -1,5 +1,4 @@
 """ Unit tests for mesh-related data structures.
-
 """
 import unittest
 import numpy as np
@@ -55,15 +54,54 @@ class MeshTest(unittest.TestCase):
         np.testing.assert_almost_equal(mesh.lattice.matrix, mesh2.lattice.matrix)
 
     def test_neighbors(self):
-        raise NotImplementedError()
+        """ Test for determination of neighbor sites in mesh.
+        """
+        mesh = membranekit.Mesh().from_lattice(N=3,lattice=membranekit.HOOMDLattice(L=1))
+
+        # point in middle of mesh
+        neigh = mesh.neighbors((1,1,1))
+        self.assertEqual(len(neigh), 6)
+        np.testing.assert_array_equal(neigh, ((2,1,1),(0,1,1),(1,2,1),(1,0,1),(1,1,2),(1,1,0)))
+
+        # test pbcs backward
+        neigh = mesh.neighbors((0,0,0))
+        self.assertEqual(len(neigh), 6)
+        np.testing.assert_array_equal(neigh, ((1,0,0),(2,0,0),(0,1,0),(0,2,0),(0,0,1),(0,0,2)))
+
+        # test pbcs forward
+        neigh = mesh.neighbors((2,2,2))
+        self.assertEqual(len(neigh), 6)
+        np.testing.assert_array_equal(neigh, ((0,2,2),(1,2,2),(2,0,2),(2,1,2),(2,2,0),(2,2,1)))
+
+        # half storage
+        neigh = mesh.neighbors((1,1,1), full=False)
+        self.assertEqual(len(neigh), 3)
+        np.testing.assert_array_equal(neigh, ((2,1,1),(1,2,1),(1,1,2)))
+
+        # test small cells
+        mesh = membranekit.Mesh().from_lattice(N=2,lattice=membranekit.HOOMDLattice(L=1))
+        neigh = mesh.neighbors((0,0,0))
+        self.assertEqual(len(neigh), 3)
+        np.testing.assert_array_equal(neigh, ((1,0,0),(0,1,0),(0,0,1)))
+
+        neigh = mesh.neighbors((1,1,1))
+        self.assertEqual(len(neigh), 3)
+        np.testing.assert_array_equal(neigh, ((0,1,1),(1,0,1),(1,1,0)))
+
+        # test stupidly small cells that can't have neighbors
+        mesh = membranekit.Mesh().from_lattice(N=1,lattice=membranekit.HOOMDLattice(L=1))
+        neigh = mesh.neighbors((0,0,0))
+        self.assertEqual(len(neigh),0)
 
 class FieldTest(unittest.TestCase):
-    """ Test cases for :py:obj:`~membranekit.mesh.Field`
+    """ Test cases for :py:obj:`~membranekit.mesh.Field`.
     """
     def setUp(self):
         self.mesh = membranekit.Mesh().from_lattice(N=(2,3,4),lattice=membranekit.HOOMDLattice(L=2.0))
 
     def test(self):
+        """ Test for basic creation of an empty field.
+        """
         field = membranekit.Field(self.mesh)
         np.testing.assert_almost_equal(field.field, np.zeros(self.mesh.shape))
         self.assertAlmostEqual(field[0,0,0], 0.)
@@ -75,7 +113,7 @@ class FieldTest(unittest.TestCase):
         self.assertAlmostEqual(field[0,0,0], 1.)
 
     def test_from_array(self):
-        """ Test for field creation for a simple array
+        """ Test for field creation for a simple array.
         """
         data = np.ones(self.mesh.shape)
         field = membranekit.Field(self.mesh).from_array(data)
@@ -97,3 +135,29 @@ class FieldTest(unittest.TestCase):
         field = membranekit.Field(self.mesh).from_array(data, index=1, axis=0)
         self.assertEqual(field.shape, self.mesh.shape)
         np.testing.assert_almost_equal(field.field, np.full(self.mesh.shape,2.))
+
+    def test_interpolator(self):
+        """ Test for creation of interpolator into field.
+        """
+        field = membranekit.Field(self.mesh)
+        for n in np.ndindex(self.mesh.shape):
+            field[n] = n[-2]
+        np.testing.assert_almost_equal(field.field, ( ( (0,0,0,0),(1,1,1,1),(2,2,2,2) ),
+                                                      ( (0,0,0,0),(1,1,1,1),(2,2,2,2) ) ) )
+
+        # interpolator
+        f = field.interpolator()
+
+        # interpolate the mesh points themselves, which should have values almost the same as the field
+        pts = self.mesh.grid.reshape((np.prod(self.mesh.shape),3))
+        fracs = self.mesh.lattice.as_fraction(pts)
+        vals = f(fracs).reshape(self.mesh.shape)
+        np.testing.assert_almost_equal(vals,  ( ( (0,0,0,0),(1,1,1,1),(2,2,2,2) ),
+                                                ( (0,0,0,0),(1,1,1,1),(2,2,2,2) ) ) )
+
+        # interpolate in between the mesh. last point gets 1 since interpolation is between 2 and 0
+        pts += 0.5 * self.mesh.step
+        fracs = self.mesh.lattice.as_fraction(pts)
+        vals = f(fracs).reshape(self.mesh.shape)
+        np.testing.assert_almost_equal(vals,  ( ( (0.5,0.5,0.5,0.5),(1.5,1.5,1.5,1.5),(1.0,1.0,1.0,1.0) ),
+                                                ( (0.5,0.5,0.5,0.5),(1.5,1.5,1.5,1.5),(1.0,1.0,1.0,1.0) ) ) )

@@ -26,12 +26,14 @@ class Lattice(object):
     matrix
     inverse
     L
+    volume
 
     """
     def __init__(self, a, b, c):
         self._matrix = np.column_stack((a,b,c))
         self._inverse = np.linalg.inv(self.matrix)
         self._L = np.linalg.norm(self.matrix,axis=0)
+        self._volume = np.dot(np.cross(a,b),c)
 
     @property
     def a(self):
@@ -88,22 +90,42 @@ class Lattice(object):
         """
         return self._L
 
+    @property
+    def volume(self):
+        """ Volume of the lattice.
+
+        Returns
+        -------
+        float:
+            The volume enclosed by the parallelopiped defining the lattice.
+
+        Notes
+        -----
+        The volume is precomputed from the lattice vectors using the scalar triple product.
+
+        .. math::
+
+            V = (a \times b) \cdot c
+
+        """
+        return self._volume
+
     def as_coordinate(self, f):
         """ Convert a fractional value to a coordinate from the lattice vectors.
 
         Parameters
         ----------
         f : array_like
-            Tuple giving fractional coordinates.
+            `N`x3 array of fractional coordinates.
 
         Returns
         -------
         array_like
-            Tuple giving real coordinates.
+            `N`x3 array of real coordinates.
 
         """
         f = np.asarray(f)
-        return np.dot(self.matrix, f)
+        return np.dot(f, self.matrix.transpose())
 
     def as_fraction(self, r):
         """ Convert a point into fractional coordinates from the lattice vectors.
@@ -111,17 +133,17 @@ class Lattice(object):
         Parameters
         ----------
         f : array_like
-            Tuple giving real coordinates.
+            `N`x3 array of real coordinates.
 
         Returns
         -------
         array_like
-            Tuple giving fractional coordinates.
+            `N`x3 array of fractional coordinates.
 
         """
 
         r = np.asarray(r)
-        return np.dot(self.inverse, r)
+        return np.dot(r, self.inverse.transpose())
 
     def to_orthorhombic(self):
         """ Project lattice onto an orthorhombic basis.

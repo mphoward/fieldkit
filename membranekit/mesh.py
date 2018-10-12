@@ -52,20 +52,14 @@ class Mesh(object):
         except TypeError:
             N = np.full(3, N, dtype=np.int32)
 
-        # fill grid points using the fractional coordinates and lattice
+        # set lattice object and grid
         self._lattice = lattice
         self._grid = np.empty(np.append(N,len(N)))
-        for n in np.ndindex(self._grid.shape[:-1]):
-            self._grid[n] = np.dot(self._lattice.matrix, n/N)
 
-        # step spacing along each cartesian axis
-        self.step = np.zeros(self.dim)
-        for i in range(self.dim):
-            origin = [0] * self.dim
-            index = list(origin)
-            index[i] = 1
-            dr = self._grid[tuple(index)] - self._grid[tuple(origin)]
-            self.step[i] = np.sqrt(np.sum(dr*dr))
+        # fill grid points using the fractional coordinates and lattice
+        self.step = self.lattice.L / N
+        for n in np.ndindex(self.grid.shape[:-1]):
+            self.grid[n] = self.lattice.as_coordinate(n/N)
 
         return self
 
@@ -96,19 +90,22 @@ class Mesh(object):
         if self.dim != 3:
             raise IndexError('Only 3D grids are supported')
 
+        if np.any(np.array(self.shape) == 1):
+            raise IndexError('At least 2 nodes are required per grid dimension')
+
         # step spacing along each cartesian axis
         self.step = np.zeros(self.dim)
         for i in range(self.dim):
             origin = [0] * self.dim
             index = list(origin)
             index[i] = 1
-            dr = self._grid[tuple(index)] - self._grid[tuple(origin)]
+            dr = self.grid[tuple(index)] - self.grid[tuple(origin)]
             self.step[i] = np.sqrt(np.sum(dr*dr))
 
         # convert box extent into lattice vectors
-        a = self._grid[-1,0,0] - self._grid[0,0,0]
-        b = self._grid[0,-1,0] - self._grid[0,0,0]
-        c = self._grid[0,0,-1] - self._grid[0,0,0]
+        a = self.grid[-1,0,0] - self.grid[0,0,0]
+        b = self.grid[0,-1,0] - self.grid[0,0,0]
+        c = self.grid[0,0,-1] - self.grid[0,0,0]
         # extend the lattice vectors to next unit cell by one step
         a += self.step[0] * (a / np.linalg.norm(a))
         b += self.step[1] * (b / np.linalg.norm(b))
@@ -206,13 +203,20 @@ class Mesh(object):
 
         """
         i,j,k = n
-        neighs = [((i+1) % self.shape[0], j, k),
-                  (i, (j+1) % self.shape[1], k),
-                  (i, j, (k+1) % self.shape[2])]
-        if full:
-            neighs += [((i-1) % self.shape[0], j, k),
-                       (i, (j-1) % self.shape[1], k),
-                       (i, j, (k-1) % self.shape[2])]
+
+        neighs = []
+        if self.shape[0] > 1:
+            neighs.append(((i+1) % self.shape[0], j, k))
+        if full and self.shape[0] > 2:
+            neighs.append(((i-1) % self.shape[0], j, k))
+        if self.shape[1] > 1:
+            neighs.append((i, (j+1) % self.shape[1], k))
+        if full and self.shape[1] > 2:
+            neighs.append((i, (j-1) % self.shape[1], k))
+        if self.shape[2] > 1:
+            neighs.append((i, j, (k+1) % self.shape[2]))
+        if full and self.shape[2] > 2:
+            neighs.append((i, j, (k-1) % self.shape[2]))
         return tuple(neighs)
 
 class Field(object):
@@ -360,8 +364,26 @@ class Field(object):
     def __setitem__(self, index, item):
         self._field[index] = item
 
-    def interpolate(self):
-        """ Interpolate a field on its mesh.
+    def interpolator(self, **kwarg):
+        r""" Obtain an interpolator for the field on its mesh.
+
+        Parameters
+        ----------
+        \**kwarg
+            Keyword arguments for :py:class:`scipy.interpolate.RegularGridInterpolator`.
+
+        Returns
+        -------
+        :py:class:`scipy.interpolate.RegularGridInterpolator`
+            SciPy interpolator object. The interpolator is a callable that returns values
+            of the field.
+
+        Notes
+        -----
+        In order to accommodate triclinic meshes, the interpolation is performed
+        on the fractional coordinates. Linear interpolation is used for points that
+        are off mesh.
+
         """
         # meshes in x, y, z w.r.t. fractions, going all the way up to 1.0
         fx = np.arange(self.mesh.shape[0] + 1).astype(np.float32) / self.mesh.shape[0]
@@ -378,4 +400,4 @@ class Field(object):
         # copy +z
         interp_field[:,:,-1] = interp_field[:,:,0]
 
-        return scipy.interpolate.RegularGridInterpolator((fx,fy,fz), interp_field)
+        return scipy.interpolate.RegularGridInterpolator((fx,fy,fz), interp_field, **kwarg)
