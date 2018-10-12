@@ -3,6 +3,7 @@
 """
 from __future__ import division
 import numpy as np
+import scipy.interpolate
 from membranekit.lattice import Lattice
 
 __all__ = ["Mesh","Field"]
@@ -358,3 +359,23 @@ class Field(object):
 
     def __setitem__(self, index, item):
         self._field[index] = item
+
+    def interpolate(self):
+        """ Interpolate a field on its mesh.
+        """
+        # meshes in x, y, z w.r.t. fractions, going all the way up to 1.0
+        fx = np.arange(self.mesh.shape[0] + 1).astype(np.float32) / self.mesh.shape[0]
+        fy = np.arange(self.mesh.shape[1] + 1).astype(np.float32) / self.mesh.shape[1]
+        fz = np.arange(self.mesh.shape[2] + 1).astype(np.float32) / self.mesh.shape[2]
+
+        # for interpolation, clone the first row into the last row
+        interp_field = np.empty((len(fx),len(fy),len(fz)))
+        interp_field[:-1,:-1,:-1] = self.field
+        # copy +x
+        interp_field[-1,:-1,:-1] = self.field[0,:,:]
+        # copy +y
+        interp_field[:,-1,:-1] = interp_field[:,0,:-1]
+        # copy +z
+        interp_field[:,:,-1] = interp_field[:,:,0]
+
+        return scipy.interpolate.RegularGridInterpolator((fx,fy,fz), interp_field)
