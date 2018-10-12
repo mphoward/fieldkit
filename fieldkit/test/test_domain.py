@@ -68,5 +68,5 @@ class DomainTest(unittest.TestCase):
 
         # 100% covered
         field[:,:,3] = 1.
-        vol = fieldkit.domain.volume(field, threshold=0.5, N=500000, seed=42)
+        vol = fieldkit.domain.volume(field, threshold=0.5, N=5e5, seed=42)
         self.assertAlmostEqual(vol, mesh.lattice.volume, places=1)

@@ -89,7 +89,7 @@ def volume(field, threshold, N, seed=None):
     # Monte Carlo sampling of the interpolated field
     if seed is not None:
         np.random.seed(seed)
-    samples = np.random.uniform(low=0.0, high=1.0, size=(N,3))
+    samples = np.random.uniform(low=0.0, high=1.0, size=(int(N),3))
     hits = np.sum(f(samples) >= threshold)
 
     return (hits/N) * field.mesh.lattice.volume
