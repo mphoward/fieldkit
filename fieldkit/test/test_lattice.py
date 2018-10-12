@@ -2,16 +2,16 @@
 """
 import unittest
 import numpy as np
-import membranekit
+import fieldkit
 
 class LatticeTest(unittest.TestCase):
-    """ Test cases for :py:obj:`~membranekit.lattice.Lattice` and :py:obj:`~membranekit.lattice.HOOMDLattice`.
+    """ Test cases for :py:obj:`~fieldkit.lattice.Lattice` and :py:obj:`~fieldkit.lattice.HOOMDLattice`.
     """
 
     def test(self):
         """ Test for basic properties of a skewed lattice.
         """
-        lattice = membranekit.Lattice([1,0,0],[0,2,2],[0,0,3])
+        lattice = fieldkit.Lattice([1,0,0],[0,2,2],[0,0,3])
 
         # size of lattice
         np.testing.assert_almost_equal(lattice.L, [1,np.sqrt(8),3])
@@ -34,38 +34,38 @@ class LatticeTest(unittest.TestCase):
         """ Test for creation of various lattices in the hoomd / lammps definition.
         """
         # cube
-        lattice = membranekit.HOOMDLattice(L=2)
+        lattice = fieldkit.HOOMDLattice(L=2)
         np.testing.assert_almost_equal(lattice.L, (2.0,2.0,2.0))
         np.testing.assert_almost_equal(np.diag(lattice.matrix), (2.0,2.0,2.0))
         np.testing.assert_almost_equal(lattice.matrix-np.diag(lattice.L), np.zeros((3,3)))
         self.assertAlmostEqual(lattice.volume, 2**3)
 
         # orthorhombic
-        lattice = membranekit.HOOMDLattice(L=(0.2,0.3,0.4))
+        lattice = fieldkit.HOOMDLattice(L=(0.2,0.3,0.4))
         np.testing.assert_almost_equal(lattice.L, (0.2,0.3,0.4))
         np.testing.assert_almost_equal(np.diag(lattice.matrix), (0.2,0.3,0.4))
         np.testing.assert_almost_equal(lattice.matrix-np.diag(lattice.L), np.zeros((3,3)))
         self.assertAlmostEqual(lattice.volume, 0.2*0.3*0.4)
 
         # tilted in xy
-        lattice = membranekit.HOOMDLattice(L=4.,tilt=(0.5,0.,0.))
+        lattice = fieldkit.HOOMDLattice(L=4.,tilt=(0.5,0.,0.))
         np.testing.assert_almost_equal(lattice.matrix, ((4.,2.,0.),(0.,4.,0.),(0.,0.,4.)))
         self.assertAlmostEqual(lattice.volume, 4**3)
 
         # tilted in xy and yz
-        lattice = membranekit.HOOMDLattice(L=4.,tilt=(0.5,0.,0.5))
+        lattice = fieldkit.HOOMDLattice(L=4.,tilt=(0.5,0.,0.5))
         np.testing.assert_almost_equal(lattice.matrix, ((4.,2.,0.),(0.,4.,2.),(0.,0.,4.)))
         self.assertAlmostEqual(lattice.volume, 4**3)
 
         # tilted in xy, xz, and yz
-        lattice = membranekit.HOOMDLattice(L=4.,tilt=(0.5,0.5,0.5))
+        lattice = fieldkit.HOOMDLattice(L=4.,tilt=(0.5,0.5,0.5))
         np.testing.assert_almost_equal(lattice.matrix, ((4.,2.,2.),(0.,4.,2.),(0.,0.,4.)))
         self.assertAlmostEqual(lattice.volume, 4**3)
 
     def test_coordinate(self):
         """ Test for mapping of fractional coordinates to real coordinates.
         """
-        lattice = membranekit.HOOMDLattice(L=(1,2,4))
+        lattice = fieldkit.HOOMDLattice(L=(1,2,4))
         r = lattice.as_coordinate((0.5, 0.25, 0.125))
         np.testing.assert_array_almost_equal(r, (0.5, 0.5, 0.5))
 
@@ -73,18 +73,18 @@ class LatticeTest(unittest.TestCase):
         r = lattice.as_coordinate(((0., 0., 0.),(1.0,1.0,1.0)))
         np.testing.assert_array_almost_equal(r, ((0,0,0),(1,2,4)))
 
-        lattice = membranekit.HOOMDLattice(L=4, tilt=(0.5,0.,0.))
+        lattice = fieldkit.HOOMDLattice(L=4, tilt=(0.5,0.,0.))
         r = lattice.as_coordinate((0.5, 0.5, 0.5))
         np.testing.assert_array_almost_equal(r, (3., 2., 2.))
 
-        lattice = membranekit.HOOMDLattice(L=4, tilt=(0.5,0.,0.5))
+        lattice = fieldkit.HOOMDLattice(L=4, tilt=(0.5,0.,0.5))
         r = lattice.as_coordinate((0.5, 0.5, 0.5))
         np.testing.assert_array_almost_equal(r, (3., 3., 2.))
 
     def test_fraction(self):
         """ Test for mapping of real coordinates to fractional coordinates.
         """
-        lattice = membranekit.HOOMDLattice(L=(1,2,4))
+        lattice = fieldkit.HOOMDLattice(L=(1,2,4))
         f = lattice.as_fraction((0.5,0.5,0.5))
         np.testing.assert_almost_equal(f, (0.5, 0.25, 0.125))
 
@@ -92,18 +92,18 @@ class LatticeTest(unittest.TestCase):
         f = lattice.as_fraction(((0,0,0),(1, 2, 4)))
         np.testing.assert_array_almost_equal(f, ((0.,0.,0.),(1.,1.,1.)))
 
-        lattice = membranekit.HOOMDLattice(L=4, tilt=(0.5,0.,0.))
+        lattice = fieldkit.HOOMDLattice(L=4, tilt=(0.5,0.,0.))
         f = lattice.as_fraction((3.,2.,2.))
         np.testing.assert_almost_equal(f, (0.5, 0.5, 0.5))
 
-        lattice = membranekit.HOOMDLattice(L=4, tilt=(0.5,0.,0.5))
+        lattice = fieldkit.HOOMDLattice(L=4, tilt=(0.5,0.,0.5))
         f = lattice.as_fraction((3.,3.,2.))
         np.testing.assert_almost_equal(f, (0.5, 0.5, 0.5))
 
     def test_orthorhombic(self):
         """ Test for construction of orthorhombic basis from triclinic lattice.
         """
-        tri = membranekit.HOOMDLattice(L=(2.,3.,4.), tilt=(0.5, 0.5, 0.5))
+        tri = fieldkit.HOOMDLattice(L=(2.,3.,4.), tilt=(0.5, 0.5, 0.5))
         ortho = tri.to_orthorhombic()
 
         self.assertAlmostEqual(ortho.volume, tri.volume)

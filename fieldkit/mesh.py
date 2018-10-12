@@ -4,7 +4,7 @@
 from __future__ import division
 import numpy as np
 import scipy.interpolate
-from membranekit.lattice import Lattice
+from fieldkit.lattice import Lattice
 
 __all__ = ["Mesh","Field"]
 
@@ -36,7 +36,7 @@ class Mesh(object):
         ----------
         N : int or array_like
             Number of lattice points.
-        lattice : :py:obj:`~membranekit.lattice.Lattice`
+        lattice : :py:obj:`~fieldkit.lattice.Lattice`
             Lattice to initialize with.
 
         Returns
@@ -139,7 +139,7 @@ class Mesh(object):
 
         Returns
         -------
-        :py:obj:`~membranekit.lattice.Lattice`
+        :py:obj:`~fieldkit.lattice.Lattice`
             Lattice object representing the periodic cell.
 
         """

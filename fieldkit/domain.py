@@ -14,7 +14,7 @@ def find(field, threshold):
 
     Parameters
     ----------
-    field : :py:obj:`~membranekit.mesh.Field`
+    field : :py:obj:`~fieldkit.mesh.Field`
         The field to analyze for continuous domains.
     threshold : float
         Threshold tolerance for the field to consider a lattice
@@ -23,7 +23,7 @@ def find(field, threshold):
     Returns
     -------
     iterator
-        An iterator for indexes in :py:obj:`~membranekit.mesh.Mesh`.
+        An iterator for indexes in :py:obj:`~fieldkit.mesh.Mesh`.
         Two nested iterators are returned: the first one is over
         domains, while the second is over the points in each domain.
 
@@ -58,7 +58,7 @@ def volume(field, threshold, N, seed=None):
 
     Parameters
     ----------
-    field : :py:obj:`~membranekit.mesh.Field`
+    field : :py:obj:`~fieldkit.mesh.Field`
         The field to analyze for continuous domains.
     threshold : float
         Threshold tolerance for the field to consider a lattice site "filled".
