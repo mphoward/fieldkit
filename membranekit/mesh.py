@@ -1,10 +1,11 @@
-""" Data structures for manipulating membrane data.
+""" Data structures for working with meshes.
 
 """
 from __future__ import division
 import numpy as np
+from membranekit.lattice import Lattice
 
-__all__ = ["Mesh","Lattice","HOOMDLattice","Field"]
+__all__ = ["Mesh","Field"]
 
 class Mesh(object):
     """ Mesh
@@ -34,7 +35,7 @@ class Mesh(object):
         ----------
         N : int or array_like
             Number of lattice points.
-        lattice : :py:obj:`~Lattice`
+        lattice : :py:obj:`~membranekit.lattice.Lattice`
             Lattice to initialize with.
 
         Returns
@@ -136,22 +137,15 @@ class Mesh(object):
 
     @property
     def lattice(self):
-        r""" Cell matrix corresponding to the periodic cell
-
-        Gives the matrix `h` that transforms a fractional lattice coordinate
-        to a real-space coordinate in the periodic cell. Each column of the
-        matrix is a real-space lattice vector.
+        """ Lattice corresponding to the periodic cell
 
         Returns
         -------
-        h : array_like
-            Transformation matrix
-
-        Dotting a fractional coordinate into this matrix yields the real space
-        coordinate.
+        :py:obj:`~membranekit.lattice.Lattice`
+            Lattice object representing the periodic cell.
 
         """
-        return self._lattice.matrix
+        return self._lattice
 
     @property
     def grid(self):
@@ -192,25 +186,6 @@ class Mesh(object):
         """
         return len(self.shape)
 
-    @property
-    def L(self):
-        """ Length of the periodic simulation cell along each lattice vector.
-
-        Returns
-        -------
-        array_like:
-            Length of the simulation cell.
-
-        """
-        return self._lattice.L
-
-    def as_fraction(self, r):
-        """ Project a point into fractional coordinates from the lattice vectors.
-        """
-
-        r = np.asarray(r)
-        return np.dot(self._lattice.inverse, r)
-
     def neighbors(self, n, full=True):
         """ Get the indexes of neighboring nodes subject to periodic boundaries.
 
@@ -238,125 +213,6 @@ class Mesh(object):
                        (i, (j-1) % self.shape[1], k),
                        (i, j, (k-1) % self.shape[2])]
         return tuple(neighs)
-
-class Lattice(object):
-    """ Lattice representing the three-dimensional periodic cell
-
-    Parameters
-    ----------
-    a : array_like
-        First lattice vector.
-    b : array_like
-        Second lattice vector.
-    c : array_like
-        Third lattice vector.
-
-    Attributes
-    ----------
-    matrix
-    inverse
-    L
-
-    """
-    def __init__(self, a, b, c):
-        self._matrix = np.column_stack((a,b,c))
-        self._inverse = np.linalg.inv(self.matrix)
-        self._L = np.linalg.norm(self.matrix,axis=0)
-
-    @property
-    def matrix(self):
-        """ Periodic cell matrix.
-
-        Each column of the matrix corresponds to a lattice vector.::
-
-            [a, b, c]
-
-        Returns
-        -------
-        array_like:
-            3x3 matrix containing the lattice vectors.
-
-        """
-        return self._matrix
-
-    @property
-    def inverse(self):
-        """ Inverse of the cell matrix.
-
-        The inverse matrix for the cell is useful for projecting
-        Cartesian coordinates onto the lattice vectors.
-
-        Returns
-        -------
-        array_like:
-            The 3x3 inverse of :py:attr:`~matrix`.
-
-        """
-        return self._inverse
-
-    @property
-    def L(self):
-        """ Lengths of the lattice vectors.
-
-        Returns
-        -------
-        array_like:
-            Lengths of each lattice vector.
-
-        """
-        return self._L
-
-class HOOMDLattice(Lattice):
-    def __init__(self, L, tilt=None):
-        """ Lattice consistent with HOOMD-blue / LAMMPS geometries.
-
-        HOOMD-blue and LAMMPS use a triclinic cell with a specific
-        orientation. This class provides a convenient way to build
-        the lattice vectors from those parameters.
-
-        Parameters
-        ----------
-        L : float or array_like
-            Length of orthorhombic (undeformed) box edges. If only
-            one value is specified, the undeformed cell is cubic.
-        tilt : None or array_like
-            Fractional tilt factors for *xy*, *xz*, and *yz*.
-
-        Notes
-        -----
-        The HOOMD-blue tilt factors can be converted to LAMMPS
-        tilt factors by multiplying `tilt` by the `L` associated
-        with the second index of each factor.
-
-        """
-        L = np.asarray(L)
-        try:
-            if len(L) != 3:
-               raise IndexError('HOOMDLattice is 3D')
-        except TypeError:
-            L = np.full(3,L)
-
-        if tilt is not None:
-            try:
-                if len(tilt) == 3:
-                    tilt = np.array(tilt)
-                else:
-                    raise TypeError('Tilt factors must be 3D array')
-            except:
-                raise TypeError('Tilt factors must be 3D array')
-        else:
-            tilt = np.zeros(3)
-
-        # fill grid points using the fractional coordinates and hoomd/lammps triclinic cell
-        a = L[0] * np.array((1., 0., 0.))
-        b = L[1] * np.array((tilt[0], 1., 0.))
-        c = L[2] * np.array((tilt[1],tilt[2],1.))
-
-        # use parent lattice constructor with these vectors
-        try:
-            super().__init__(a,b,c)
-        except:
-            super(Lattice, self).__init__(a,b,c)
 
 class Field(object):
     """ Scalar field on a :py:obj:`~Mesh`.

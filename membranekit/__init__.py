@@ -4,6 +4,9 @@
 
 import membranekit.domain
 
+import membranekit.lattice
+from membranekit.lattice import *
+
 import membranekit.mesh
 from membranekit.mesh import *
 
