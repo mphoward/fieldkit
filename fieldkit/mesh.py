@@ -6,7 +6,7 @@ import numpy as np
 import scipy.interpolate
 from fieldkit.lattice import Lattice
 
-__all__ = ["Mesh","Field"]
+__all__ = ["Mesh","Field","TriangulatedSurface"]
 
 class Mesh(object):
     """ Mesh
@@ -36,12 +36,12 @@ class Mesh(object):
         ----------
         N : int or array_like
             Number of lattice points.
-        lattice : :py:obj:`~fieldkit.lattice.Lattice`
+        lattice : :py:class:`~fieldkit.lattice.Lattice`
             Lattice to initialize with.
 
         Returns
         -------
-        :py:obj:`Mesh`
+        :py:class:`Mesh`
             A reference to the mesh object.
 
         """
@@ -80,7 +80,7 @@ class Mesh(object):
 
         Returns
         -------
-        :py:obj:`Mesh`
+        :py:class:`Mesh`
             A reference to the mesh object.
 
         """
@@ -126,7 +126,7 @@ class Mesh(object):
 
         Returns
         -------
-        :py:obj:`Mesh`
+        :py:class:`Mesh`
             A reference to the mesh object.
 
         """
@@ -139,7 +139,7 @@ class Mesh(object):
 
         Returns
         -------
-        :py:obj:`~fieldkit.lattice.Lattice`
+        :py:class:`~fieldkit.lattice.Lattice`
             Lattice object representing the periodic cell.
 
         """
@@ -220,11 +220,11 @@ class Mesh(object):
         return tuple(neighs)
 
 class Field(object):
-    """ Scalar field on a :py:obj:`~Mesh`.
+    """ Scalar field on a :py:class:`~Mesh`.
 
     Parameters
     ----------
-    mesh : :py:obj:`~Mesh`
+    mesh : :py:class:`~Mesh`
         Mesh used to define the volume for the field.
 
     Attributes
@@ -263,7 +263,7 @@ class Field(object):
 
         Returns
         -------
-        :py:obj:`~Field`
+        :py:class:`~Field`
             A reference to the field object.
 
         """
@@ -295,7 +295,7 @@ class Field(object):
 
         Returns
         -------
-        :py:obj:`~Field`
+        :py:class:`~Field`
             A reference to the field object.
 
         """
@@ -338,7 +338,7 @@ class Field(object):
 
         Returns
         -------
-        :py:obj:`~Mesh`
+        :py:class:`~Mesh`
             The mesh attached to the field.
 
         """
@@ -364,6 +364,34 @@ class Field(object):
     def __setitem__(self, index, item):
         self._field[index] = item
 
+    def buffered(self):
+        """ Create a copy of the field data buffered with the periodic boundary nodes.
+
+        The data is the same as that in :py:attr:`~field`, but it is extended by 1 node
+        to include the first points from the next (positive) periodic cells, and fractional
+        coordinates up to and including 1 are now available.
+
+        Returns
+        -------
+        array_like
+            The buffered field data.
+
+        """
+        # for interpolation, clone the first row into the last row
+        field = np.empty((self.mesh.shape[0]+1,self.mesh.shape[1]+1,self.mesh.shape[2]+1))
+        field[:-1,:-1,:-1] = self.field
+        # copy +x
+        field[-1,:-1,:-1] = self.field[0,:,:]
+        # copy +y
+        field[:,-1,:-1] = field[:,0,:-1]
+        # copy +z
+        field[:,:,-1] = field[:,:,0]
+
+        return field
+
+    def copy(self):
+        return Field(self.mesh).from_array(self.field)
+
     def interpolator(self, **kwarg):
         r""" Obtain an interpolator for the field on its mesh.
 
@@ -386,18 +414,100 @@ class Field(object):
 
         """
         # meshes in x, y, z w.r.t. fractions, going all the way up to 1.0
-        fx = np.arange(self.mesh.shape[0] + 1).astype(np.float32) / self.mesh.shape[0]
-        fy = np.arange(self.mesh.shape[1] + 1).astype(np.float32) / self.mesh.shape[1]
-        fz = np.arange(self.mesh.shape[2] + 1).astype(np.float32) / self.mesh.shape[2]
-
-        # for interpolation, clone the first row into the last row
-        interp_field = np.empty((len(fx),len(fy),len(fz)))
-        interp_field[:-1,:-1,:-1] = self.field
-        # copy +x
-        interp_field[-1,:-1,:-1] = self.field[0,:,:]
-        # copy +y
-        interp_field[:,-1,:-1] = interp_field[:,0,:-1]
-        # copy +z
-        interp_field[:,:,-1] = interp_field[:,:,0]
+        interp_field = self.buffered()
+        fx = np.arange(interp_field.shape[0]).astype(np.float32) / self.mesh.shape[0]
+        fy = np.arange(interp_field.shape[1]).astype(np.float32) / self.mesh.shape[1]
+        fz = np.arange(interp_field.shape[2]).astype(np.float32) / self.mesh.shape[2]
 
         return scipy.interpolate.RegularGridInterpolator((fx,fy,fz), interp_field, **kwarg)
+
+class TriangulatedSurface(object):
+    """ Triangulated surface mesh.
+
+    The surface mesh is composed of *vertices* connected by edges to form
+    *faces*. Each face is a triangle defined by three connected vertices.
+    The surface normal to the triangle is given by the ?? rule.
+
+    Attributes
+    ----------
+    vertex
+    normal
+    face
+
+    """
+    def __init__(self):
+        self._vertex = np.empty((0,3))
+        self._normal = np.empty((0,3))
+        self._face = []
+
+    def add_vertex(self, vertex, normal):
+        """ Add a vertex to the surface.
+
+        Parameters
+        ----------
+        vertex : array_like
+            3-tuple or `N`x3 array of vertices.
+        normal : array_like
+            3-tuple or `N`x3 array of vertex normals.
+
+        Raises
+        ------
+        IndexError
+            If `vertex` and `normal` are not (arrays of) 3-element tuples of equal shape.
+
+        """
+        vertex = np.asarray(vertex)
+        if len(vertex.shape) == 1:
+            vertex = np.array([vertex])
+
+        normal = np.asarray(normal)
+        if len(normal.shape) == 1:
+            normal = np.array([normal])
+
+        if vertex.shape[0] != normal.shape[0]:
+            raise IndexError('Must give equal number of vertexes and normals')
+
+        if vertex.shape[1] != 3 or normal.shape[1] != 3:
+            raise IndexError('Vertex and normal must be 3-element vectors')
+
+        self._vertex = np.append(self._vertex, vertex, axis=0)
+        self._normal = np.append(self._normal, normal, axis=0)
+
+    def add_face(self, face):
+        """ Add a face from vertices.
+
+        The definition of a face should be consistent with `skimage`.
+
+        Parameters
+        ----------
+        face : array_like
+            3-tuple or `N`x3 array of indexes comprising a face.
+
+        Raises
+        ------
+        IndexError
+            If there are not 3 indices for a face.
+
+        """
+        # convert input to tuples
+        face = np.asarray(face, dtype=np.int32)
+        if len(face.shape) == 1:
+            face = np.array([face])
+
+        if face.shape[1] != 3:
+            raise IndexError('Faces must have 3 vertices')
+        face = [tuple(f.tolist()) for f in face]
+
+        self._face.extend(face)
+
+    @property
+    def vertex(self):
+        return self._vertex
+
+    @property
+    def normal(self):
+        return self._normal
+
+    @property
+    def face(self):
+        return tuple(self._face)

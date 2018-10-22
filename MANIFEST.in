@@ -1,1 +1,2 @@
 recursive-include fieldkit *.py
+include LICENSE README.md CHANGELOG.md CODE_OF_CONDUCT.md

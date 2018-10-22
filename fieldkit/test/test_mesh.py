@@ -5,7 +5,7 @@ import numpy as np
 import fieldkit
 
 class MeshTest(unittest.TestCase):
-    """ Test cases for :py:obj:`~fieldkit.mesh.Mesh`
+    """ Test cases for :py:class:`~fieldkit.mesh.Mesh`
     """
 
     def test_cube(self):
@@ -94,7 +94,7 @@ class MeshTest(unittest.TestCase):
         self.assertEqual(len(neigh),0)
 
 class FieldTest(unittest.TestCase):
-    """ Test cases for :py:obj:`~fieldkit.mesh.Field`.
+    """ Test cases for :py:class:`~fieldkit.mesh.Field`.
     """
     def setUp(self):
         self.mesh = fieldkit.Mesh().from_lattice(N=(2,3,4),lattice=fieldkit.HOOMDLattice(L=2.0))
@@ -161,3 +161,64 @@ class FieldTest(unittest.TestCase):
         vals = f(fracs).reshape(self.mesh.shape)
         np.testing.assert_almost_equal(vals,  ( ( (0.5,0.5,0.5,0.5),(1.5,1.5,1.5,1.5),(1.0,1.0,1.0,1.0) ),
                                                 ( (0.5,0.5,0.5,0.5),(1.5,1.5,1.5,1.5),(1.0,1.0,1.0,1.0) ) ) )
+
+class TriangulatedSurfaceTest(unittest.TestCase):
+    """ Test cases for :py:class:`~fieldkit.mesh.TriangulatedSurface`
+    """
+
+    def test(self):
+        """ Test for basic storage of vertices and faces.
+        """
+        surface = fieldkit.TriangulatedSurface()
+        self.assertEqual(surface.vertex.shape, (0,3))
+        self.assertEqual(surface.normal.shape, (0,3))
+        self.assertEqual(len(surface.face), 0)
+
+        # add one vertex
+        surface.add_vertex(vertex=(0,0,0), normal=(-1,0,0))
+        self.assertEqual(surface.vertex.shape, (1,3))
+        self.assertEqual(surface.normal.shape, (1,3))
+        np.testing.assert_almost_equal(surface.vertex, ((0,0,0),) )
+        np.testing.assert_almost_equal(surface.normal, ((-1,0,0),) )
+
+        # add two vertices
+        surface.add_vertex(vertex=((1,0,0),(0.5,0.5,0)), normal=((1,0,0),(0,1,0)))
+        self.assertEqual(surface.vertex.shape, (3,3))
+        self.assertEqual(surface.normal.shape, (3,3))
+        np.testing.assert_almost_equal(surface.vertex, ((0,0,0),(1,0,0),(0.5,0.5,0)) )
+        np.testing.assert_almost_equal(surface.normal, ((-1,0,0),(1,0,0),(0,1,0)) )
+
+        # add a face
+        surface.add_face((0,1,2))
+        self.assertEqual(len(surface.face),1)
+        self.assertEqual(surface.face, ((0,1,2),))
+        surface.add_face(((1,2,0),(2,0,1)))
+        self.assertEqual(len(surface.face),3)
+        self.assertEqual(surface.face, ((0,1,2),(1,2,0),(2,0,1)))
+
+    def test_exceptions(self):
+        """ Test for exception throwing adding vertices and faces.
+        """
+        surface = fieldkit.TriangulatedSurface()
+
+        # check vector sizes
+        with self.assertRaises(IndexError):
+            surface.add_vertex(vertex=(0,0), normal=(1,0,0))
+        with self.assertRaises(IndexError):
+            surface.add_vertex(vertex=(0,0,0), normal=(1,0))
+        with self.assertRaises(IndexError):
+            surface.add_vertex(vertex=((0,0),(0,0)), normal=((1,0,0),(1,0,0)))
+        with self.assertRaises(IndexError):
+            surface.add_vertex(vertex=((0,0,0),(0,0,0)), normal=((1,0),(1,0)))
+
+        # check mismatch in numbers
+        with self.assertRaises(IndexError):
+            surface.add_vertex(vertex=((0,0,0),(0,0,0)), normal=((1,0,0),))
+        with self.assertRaises(IndexError):
+            surface.add_vertex(vertex=((0,0,0),), normal=((1,0,0),(1,0,0)))
+
+        # check number of vertices in faces
+        with self.assertRaises(IndexError):
+            surface.add_face((0,1))
+        with self.assertRaises(IndexError):
+            surface.add_face((0,1,2,3))

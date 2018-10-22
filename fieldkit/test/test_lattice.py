@@ -5,7 +5,7 @@ import numpy as np
 import fieldkit
 
 class LatticeTest(unittest.TestCase):
-    """ Test cases for :py:obj:`~fieldkit.lattice.Lattice` and :py:obj:`~fieldkit.lattice.HOOMDLattice`.
+    """ Test cases for :py:class:`~fieldkit.lattice.Lattice` and :py:class:`~fieldkit.lattice.HOOMDLattice`.
     """
 
     def test(self):

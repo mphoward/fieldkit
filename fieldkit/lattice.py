@@ -150,7 +150,7 @@ class Lattice(object):
 
         Returns
         -------
-        :py:obj:`~Lattice`
+        :py:class:`~Lattice`
             A representation of the current lattice in an orthorhombic basis.
 
         Notes

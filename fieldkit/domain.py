@@ -3,6 +3,8 @@
 from __future__ import division
 import numpy as np
 import networkx
+import skimage.measure
+from fieldkit.mesh import TriangulatedSurface
 
 def find(field, threshold):
     """ Finds connected domains in a field.
@@ -14,7 +16,7 @@ def find(field, threshold):
 
     Parameters
     ----------
-    field : :py:obj:`~fieldkit.mesh.Field`
+    field : :py:class:`~fieldkit.mesh.Field`
         The field to analyze for continuous domains.
     threshold : float
         Threshold tolerance for the field to consider a lattice
@@ -23,7 +25,7 @@ def find(field, threshold):
     Returns
     -------
     iterator
-        An iterator for indexes in :py:obj:`~fieldkit.mesh.Mesh`.
+        An iterator for indexes in :py:class:`~fieldkit.mesh.Mesh`.
         Two nested iterators are returned: the first one is over
         domains, while the second is over the points in each domain.
 
@@ -58,8 +60,8 @@ def volume(field, threshold, N, seed=None):
 
     Parameters
     ----------
-    field : :py:obj:`~fieldkit.mesh.Field`
-        The field to analyze for continuous domains.
+    field : :py:class:`~fieldkit.mesh.Field`
+        The field to analyze.
     threshold : float
         Threshold tolerance for the field to consider a lattice site "filled".
     N : int
@@ -82,6 +84,10 @@ def volume(field, threshold, N, seed=None):
     divided by `N`, which is multiplied by the cell volume to give the domain
     volume.
 
+    Todo
+    ----
+    This method will eventually be extended to subsets of the nodes in a domain.
+
     """
     # interpolator for the field
     f = field.interpolator()
@@ -93,3 +99,53 @@ def volume(field, threshold, N, seed=None):
     hits = np.sum(f(samples) >= threshold)
 
     return (hits/N) * field.mesh.lattice.volume
+
+def triangulate(field, threshold):
+    """ Triangulate the surface of a domain using the Marching Cubes algorithm.
+
+    Parameters
+    ----------
+    field : :py:class:`~fieldkit.mesh.Field`
+        The field to triangulate.
+    threshold : float
+        Threshold tolerance for the field to consider a lattice site "filled".
+
+    Returns
+    -------
+    :py:class:`~fieldkit.mesh.TriangulatedSurface`
+        Triangulated surface.
+
+    Todo
+    -----
+    This method will eventually be extended to subsets of the nodes in a domain. It also needs to be validated more
+    thoroughly in periodic boundary conditions.
+
+    """
+    # perform marching cubes on the fractional lattice
+    verts,faces,normals,_ = skimage.measure.marching_cubes_lewiner(field.buffered(), level=threshold, spacing=field.mesh.step/field.mesh.lattice.L)
+
+    # map the vertices and normals into the triclinic cell
+    verts = field.mesh.lattice.as_coordinate(verts)
+    normals = field.mesh.lattice.as_coordinate(normals)
+
+    # generate triangulated surface
+    surface = TriangulatedSurface()
+    surface.add_vertex(verts, normals)
+    surface.add_face(faces)
+
+    return surface
+
+def surface_area(surface):
+    """ Compute the surface of a triangulated mesh.
+
+    Parameters
+    ----------
+    surface : :py:class:`~fieldkit.mesh.TriangulatedSurface`
+        Triangulated mesh to evaluate.
+
+    Todo
+    -----
+    This method needs to be tested in periodic boundary conditions to see if it works correctly.
+
+    """
+    return skimage.measure.mesh_surface_area(surface.vertex, np.asarray(surface.face))

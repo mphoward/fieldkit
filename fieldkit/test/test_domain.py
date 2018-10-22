@@ -70,3 +70,41 @@ class DomainTest(unittest.TestCase):
         field[:,:,3] = 1.
         vol = fieldkit.domain.volume(field, threshold=0.5, N=5e5, seed=42)
         self.assertAlmostEqual(vol, mesh.lattice.volume, places=1)
+
+    def test_area(self):
+        """ Test for domain surface triangulation and area calculation.
+        """
+        mesh = fieldkit.Mesh().from_lattice(N=4, lattice=fieldkit.HOOMDLattice(L=4.0))
+        self.assertAlmostEqual(mesh.lattice.volume, 64.)
+
+        # make a plane in the box
+        field = fieldkit.Field(mesh).from_array(np.zeros(mesh.shape))
+        field[:,:,0] = 1.
+        surface = fieldkit.domain.triangulate(field, threshold=0.5)
+        area = fieldkit.domain.surface_area(surface)
+
+        self.assertAlmostEqual(area, 2*mesh.lattice.L[0]*mesh.lattice.L[1])
+
+    def test_sphere(self):
+        """ Test for measuring properties of a sphere
+        """
+        mesh = fieldkit.Mesh().from_lattice(N=32, lattice=fieldkit.HOOMDLattice(L=4.))
+        field = fieldkit.Field(mesh).from_array(np.zeros(mesh.shape))
+
+        # make a sphere
+        R = 1.
+        for n in np.ndindex(mesh.shape):
+            pt = mesh[n]
+            rsq = np.sum((pt-mesh.lattice.L/2)**2)
+            if rsq <= R**2:
+                field[n] = 1.
+
+        # use a loose tolerance due to inaccuracies of meshing and interpolating densities
+        volume = fieldkit.domain.volume(field, threshold=0.5, N=5e5, seed=42)
+        self.assertAlmostEqual(volume, 4*np.pi*R**3/3, delta=0.1)
+
+        # the surface should have a measured area greater than that of sphere
+        surface = fieldkit.domain.triangulate(field, threshold=0.5)
+        area = fieldkit.domain.surface_area(surface)
+        self.assertTrue(area >= 4*np.pi*R**2)
+        self.assertAlmostEqual(area, 4*np.pi*R**2, delta=1.)
