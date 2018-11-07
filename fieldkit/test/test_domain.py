@@ -108,3 +108,37 @@ class DomainTest(unittest.TestCase):
         area = fieldkit.domain.surface_area(surface)
         self.assertTrue(area >= 4*np.pi*R**2)
         self.assertAlmostEqual(area, 4*np.pi*R**2, delta=1.)
+
+class DomainBurnTest(unittest.TestCase):
+    """ Tests for burning algorithm
+    """
+    def test_plane(self):
+        mesh = fieldkit.Mesh().from_lattice(N=4, lattice=fieldkit.HOOMDLattice(L=4.))
+        field = fieldkit.Field(mesh).from_array(np.ones(mesh.shape))
+        field[:,:,0] = 0
+
+        burn,axis = fieldkit.domain.burn(field, 0.5)
+        # check burning points
+        np.testing.assert_equal(burn.shape, (4,4,4))
+        np.testing.assert_equal(burn[:,:,0], 0)
+        np.testing.assert_equal(burn[:,:,1], 1)
+        np.testing.assert_equal(burn[:,:,2], 2)
+        np.testing.assert_equal(burn[:,:,3], 1)
+        # check axis
+        np.testing.assert_equal(axis.shape, (4*4,3))
+        np.testing.assert_equal(axis[:,2], 2)
+
+    def test_collide(self):
+        mesh = fieldkit.Mesh().from_lattice(N=3, lattice=fieldkit.HOOMDLattice(L=4.))
+        field = fieldkit.Field(mesh).from_array(np.ones(mesh.shape))
+        field[:,:,0] = 0
+
+        burn,axis = fieldkit.domain.burn(field, 0.5)
+        # check burning points
+        np.testing.assert_equal(burn.shape, (3,3,3))
+        np.testing.assert_equal(burn[:,:,0], 0)
+        np.testing.assert_equal(burn[:,:,1], 1)
+        np.testing.assert_equal(burn[:,:,2], 1)
+        # check axis
+        np.testing.assert_equal(axis.shape, (2*3*3,3))
+        np.testing.assert_equal(axis[:,2], [1,2]*9)
