@@ -93,6 +93,16 @@ class MeshTest(unittest.TestCase):
         neigh = mesh.neighbors((0,0,0))
         self.assertEqual(len(neigh),0)
 
+    def test_indices(self):
+        """ Test for calculation of indices for mesh nodes.
+        """
+        mesh = fieldkit.Mesh().from_lattice(N=(2,3,4), lattice=fieldkit.HOOMDLattice(L=2.0))
+        idx = mesh.indices
+        self.assertEqual(idx.shape,(2,3,4,3))
+        # reference is given by numpy indexes
+        ref = [i for i in np.ndindex(mesh.shape)]
+        np.testing.assert_array_equal(idx.reshape((2*3*4,3)), ref)
+
 class FieldTest(unittest.TestCase):
     """ Test cases for :py:class:`~fieldkit.mesh.Field`.
     """
@@ -222,3 +232,140 @@ class TriangulatedSurfaceTest(unittest.TestCase):
             surface.add_face((0,1))
         with self.assertRaises(IndexError):
             surface.add_face((0,1,2,3))
+
+class DomainTest(unittest.TestCase):
+    """ Test cases for :py:class:`~fieldkit.mesh.Domain`
+    """
+    def setUp(self):
+        self.mesh = fieldkit.Mesh().from_lattice(N=(3,4,5),lattice=fieldkit.HOOMDLattice(L=(1.5,2,2.5)))
+
+    def test(self):
+        """ Basic tests of constructing domain and its graph.
+        """
+        nodes = self.mesh.indices.reshape((np.prod(self.mesh.shape), 3))
+        domain = fieldkit.Domain(self.mesh, nodes)
+        self.assertEqual(domain.mesh, self.mesh)
+        np.testing.assert_array_equal(domain.nodes, nodes)
+
+        # check for mask being made and cached
+        self.assertTrue(domain._mask is None)
+        np.testing.assert_array_equal(self.mesh.indices[domain.mask], nodes)
+        self.assertTrue(domain._mask is not None)
+
+        # graph is initially not built
+        self.assertTrue(domain._graph is None)
+
+        # base graph is all nodes connected together
+        graph = domain.graph
+        self.assertEqual(len(graph.nodes()), 3*4*5)
+        edges = graph.edges()
+        self.assertEqual(len(edges), 3*4*5*3)
+        # x periodic
+        self.assertTrue(((0,0,0),(2,0,0)) in edges)
+        self.assertTrue(((0,3,4),(2,3,4)) in edges)
+        # y periodic
+        self.assertTrue(((0,0,0),(0,3,0)) in edges)
+        self.assertTrue(((2,0,4),(2,3,4)) in edges)
+        # z periodic
+        self.assertTrue(((0,0,0),(0,0,4)) in edges)
+        self.assertTrue(((2,3,0),(2,3,4)) in edges)
+        # check weights of edges, which should all be 0.5
+        weights = [e[2] for e in graph.edges(data='weight')]
+        np.testing.assert_almost_equal(weights, 0.5*np.ones(3*4*5*3))
+
+        # check graph is cached
+        self.assertTrue(domain._graph is not None)
+
+    def test_buffered_graph(self):
+        """ Tests for constructing buffered graph along an axis.
+        """
+        nodes = self.mesh.indices.reshape((np.prod(self.mesh.shape), 3))
+        domain = fieldkit.Domain(self.mesh, nodes)
+
+        # test for basic buffering behavior in x
+        buff = domain.buffered_graph(axis=0)
+        # number of nodes increases by 1 layer
+        self.assertEqual(len(buff.nodes()), 4*4*5)
+        # the number of edges is the same as unbuffered
+        self.assertEqual(len(buff.edges()), 3*4*5*3)
+        edges = buff.edges()
+        # x buffered
+        self.assertTrue(((0,0,0),(2,0,0)) not in edges)
+        self.assertTrue(((2,0,0),(3,0,0)) in edges)
+        self.assertTrue(((0,3,4),(2,3,4)) not in edges)
+        self.assertTrue(((2,3,4),(3,3,4)) in edges)
+        # y periodic
+        self.assertTrue(((0,0,0),(0,3,0)) in edges)
+        self.assertTrue(((2,0,4),(2,3,4)) in edges)
+        # z periodic
+        self.assertTrue(((0,0,0),(0,0,4)) in edges)
+        self.assertTrue(((2,3,0),(2,3,4)) in edges)
+        # check weights of edges, which should all be 0.5
+        weights = [e[2] for e in buff.edges(data='weight')]
+        np.testing.assert_almost_equal(weights, 0.5*np.ones(3*4*5*3))
+
+        # test for basic buffering behavior in y
+        buff = domain.buffered_graph(axis=1)
+        self.assertEqual(len(buff.nodes()), 3*5*5)
+        self.assertEqual(len(buff.edges()), 3*4*5*3)
+        edges = buff.edges()
+        # x periodic
+        self.assertTrue(((0,0,0),(2,0,0)) in edges)
+        self.assertTrue(((0,3,4),(2,3,4)) in edges)
+        # y buffered
+        self.assertTrue(((0,0,0),(0,3,0)) not in edges)
+        self.assertTrue(((0,3,0),(0,4,0)) in edges)
+        self.assertTrue(((2,0,4),(2,3,4)) not in edges)
+        self.assertTrue(((2,3,4),(2,4,4)) in edges)
+        # z periodic
+        self.assertTrue(((0,0,0),(0,0,4)) in edges)
+        self.assertTrue(((2,3,0),(2,3,4)) in edges)
+        # check weights of edges, which should all be 0.5
+        weights = [e[2] for e in buff.edges(data='weight')]
+        np.testing.assert_almost_equal(weights, 0.5*np.ones(3*4*5*3))
+
+        # test for basic buffering behavior in z
+        buff = domain.buffered_graph(axis=2)
+        self.assertEqual(len(buff.nodes()), 3*4*6)
+        self.assertEqual(len(buff.edges()), 3*4*5*3)
+        edges = buff.edges()
+        # x periodic
+        self.assertTrue(((0,0,0),(2,0,0)) in edges)
+        self.assertTrue(((0,3,4),(2,3,4)) in edges)
+        # y periodic
+        self.assertTrue(((0,0,0),(0,3,0)) in edges)
+        self.assertTrue(((2,0,4),(2,3,4)) in edges)
+        # z buffered
+        self.assertTrue(((0,0,0),(0,0,4)) not in edges)
+        self.assertTrue(((0,0,4),(0,0,5)) in edges)
+        self.assertTrue(((2,3,0),(2,3,4)) not in edges)
+        self.assertTrue(((2,3,4),(2,3,5)) in edges)
+        # check weights of edges, which should all be 0.5
+        weights = [e[2] for e in buff.edges(data='weight')]
+        np.testing.assert_almost_equal(weights, 0.5*np.ones(3*4*5*3))
+
+    def test_slab(self):
+        """ Application test for a slab domain.
+        """
+        nodes = [(i,j,1) for i in range(self.mesh.shape[0]) for j in range(self.mesh.shape[1])]
+        domain = fieldkit.Domain(self.mesh, nodes)
+
+        # graph is only 2d periodic (in x and y)
+        graph = domain.graph
+        self.assertEqual(len(graph.nodes()), 3*4)
+        self.assertEqual(len(graph.edges()), 3*4*2)
+
+        # buffering in z should do nothing since domain is not spanning
+        buff = domain.buffered_graph(axis=2)
+        self.assertEqual(len(buff.nodes()), 3*4)
+        self.assertEqual(len(buff.edges()), 3*4*2)
+
+        # buffering x should expand by 1 node
+        buff = domain.buffered_graph(axis=0)
+        self.assertEqual(len(buff.nodes()), 4*4)
+        self.assertEqual(len(buff.edges()), 3*4*2)
+
+        # buffering y should expand by 1 node
+        buff = domain.buffered_graph(axis=1)
+        self.assertEqual(len(buff.nodes()), 3*5)
+        self.assertEqual(len(buff.edges()), 3*4*2)

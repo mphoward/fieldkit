@@ -4,9 +4,10 @@
 from __future__ import division
 import numpy as np
 import scipy.interpolate
+import networkx
 from fieldkit.lattice import Lattice
 
-__all__ = ["Mesh","Field","TriangulatedSurface"]
+__all__ = ["Mesh","Field","TriangulatedSurface","Domain"]
 
 class Mesh(object):
     """ Mesh
@@ -183,6 +184,29 @@ class Mesh(object):
 
         """
         return len(self.shape)
+
+    @property
+    def indices(self):
+        """ Indices of the mesh nodes.
+
+        Returns
+        -------
+        array_like:
+            A 4D array containing the 3-tuple indices for each node in the last axis.
+            The array dimensions correspond to the dimensions of the mesh.
+
+        Examples
+        --------
+        The indices can be converted into a flat list by reshaping::
+
+            mesh.indices.reshape(mesh.shape, 3)
+
+        The output of this command should be equivalent to::
+
+            np.array([n for n in np.ndindex(mesh.shape)])
+
+        """
+        return np.moveaxis(np.indices(self.shape), 0, -1)
 
     def neighbors(self, n, full=True):
         """ Get the indexes of neighboring nodes subject to periodic boundaries.
@@ -511,3 +535,171 @@ class TriangulatedSurface(object):
     @property
     def face(self):
         return tuple(self._face)
+
+class Domain(object):
+    """ Domain
+
+    A domain is a set of nodes from a :py:class:`~Mesh` constituting a region of
+    space. Commonly, a domain is a single set of connected points in the mesh, but
+    this class does not require this condition. However, some domain calculations
+    may be more or less meaningful depending on the connectedness of the nodes.
+    See :py:mod:`~fieldkit.domain` for additional details.
+
+    Parameters
+    ----------
+    mesh : :py:class:`~Mesh`
+        Mesh defining the support of nodes for the domain.
+    nodes : array_like
+        An `N`x3 array of 3-tuples giving the nodes from `mesh` in the domain.
+
+    Attributes
+    ----------
+    graph
+    mesh
+    nodes
+
+    """
+    def __init__(self, mesh, nodes):
+        self._mesh = mesh
+        self._graph = None
+        self._mask = None
+
+        nodes = np.asarray(nodes)
+        if nodes.ndim != 2 or nodes.shape[1] != 3:
+            raise IndexError('Nodes are expected to be a Nx3 array')
+        self._nodes = tuple([tuple(n) for n in nodes])
+
+    @property
+    def mesh(self):
+        """ Mesh supporting the domain.
+
+        Returns
+        -------
+        :py:class:`~Mesh`
+            The mesh attached to the domain.
+
+        """
+        return self._mesh
+
+    @property
+    def nodes(self):
+        """ Nodes in the domain.
+
+        Returns
+        -------
+        tuple
+            An `N`x3 tuple of the node indices in the domain.
+
+        """
+        return self._nodes
+
+    @property
+    def mask(self):
+        """ A mask of boolean flags into the original mesh.
+
+        Returns
+        -------
+        array_like
+            A boolean array having the same dimensions as the
+            :py:attr:`~mesh`, having entries that are `True` for
+            nodes in the :py:attr:`~mesh` and `False` otherwise.
+
+        Notes
+        -----
+        The mask is cached on the first access, and so it is safe to
+        access this property multiple times.
+
+        """
+        if self._mask is None:
+            self._mask = np.zeros(self.mesh.shape, dtype=bool)
+            for n in self.nodes:
+                self._mask[n] = True
+        return self._mask
+
+    @property
+    def graph(self):
+        """ Graph representation of the domain.
+
+        The graph corresponding to the domain is cached the first
+        time that it is constructed, so it is safe to access this
+        property multiple times. The graph representation is the nodes
+        of the domain connected by edges between neighboring nodes.
+        The edges between nodes are assigned a `weight` property,
+        corresponding to the Euclidean distance in the :py:class:`~Mesh`.
+
+        Returns
+        -------
+        :py:class:`networkx.Graph`
+            The networkx graph representation of the domain.
+
+        """
+        if self._graph is None:
+            # build up the domain graph
+            # first, construct the full graph for the mesh
+            self._graph = networkx.Graph()
+            for n in np.ndindex(self.mesh.shape):
+                self._graph.add_node(n)
+                for neigh in self.mesh.neighbors(n, full=False):
+                    # get euclidean distance to neighbors
+                    dn = (np.array(neigh) - np.array(n)).astype(float)
+                    dn -= self.mesh.shape * np.round(dn/self.mesh.shape)
+                    dx = dn * self.mesh.step
+                    dist = np.sqrt(np.dot(dx,dx))
+                    # edge is weighted by the euclidean distance
+                    self._graph.add_edge(n, neigh, weight=dist)
+            # then, burn out the nodes that aren't in the domain, taking edges with them
+            mask = np.ones(self.mesh.shape, dtype=bool)
+            for n in self.nodes:
+                mask[n] = False
+            for n in np.ndindex(self.mesh.shape):
+                if mask[n]:
+                    self._graph.remove_node(n)
+
+        return self._graph
+
+    def buffered_graph(self, axis):
+        """ Compute the buffered graph representation of the domain.
+
+        The domain is unwrapped along `axis` to create a "buffered"
+        representation that can be used to check for, e.g., percolation
+        without needing to treat the periodic boundary conditions.
+        The domain is buffered by inserting an additional layer of nodes
+        along `axis`, removing edges that spanned the `axis` boundary,
+        and adding a new edge to the added layer. Hence, the number of
+        nodes is increased by 1 along `axis`, but the total number of
+        edges in the graph stays the same. The nodes and edges retain
+        the same information as documented in :py:meth:`~graph`.
+
+        Returns
+        -------
+        :py:class:`networkx.Graph`
+            The networkx graph representation of the domain, unwrapped
+            (buffered) along `axis` to remove this periodic boundary.
+
+        Note
+        ----
+        Unlike :py:attr:`~graph`, :py:meth:`buffered_graph` generates a new
+        representation each time it is called because `axis` can change.
+        Hence, multiple calls should be avoided if the result can be cached.
+
+        """
+        g = self.graph.copy()
+
+        # cut and mend edges along the boundaries
+        first = 0
+        last = self.mesh.shape[axis]-1
+        for e in self.graph.edges(data='weight'):
+            # sort the edge by the axis so that it always goes lo->hi
+            se = sorted(list(e[:2]), key=lambda x : x[axis])
+            # if this edge crosses the boundary of axis, then cut it and add edge to buffer node
+            if se[0][axis] == first and se[1][axis] == last:
+                # make a new node to pad the existing graph
+                new_node = list(se[1])
+                new_node[axis] = last+1
+                new_node = tuple(new_node)
+                # cut the old edge
+                g.remove_edge(*se)
+                # insert the new edge to the buffer node
+                g.add_edge(se[1],new_node,weight=e[2])
+
+        return g
