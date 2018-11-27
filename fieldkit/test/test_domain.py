@@ -99,6 +99,79 @@ class DomainTest(unittest.TestCase):
         self.assertTrue(fieldkit.domain.is_percolated(domain, axis=1))
         self.assertTrue(fieldkit.domain.is_percolated(domain, axis=2))
 
+    def test_tortuosity(self):
+        """ Test for tortuosity calculation for a domain.
+        """
+        ## one straight line
+        self.field[:,0,0] = 1.
+        domain = fieldkit.domain.digitize(self.field, 0.5)
+        # x
+        tort,nodes = fieldkit.domain.tortuosity(domain, axis=0)
+        self.assertAlmostEqual(tort[0], 1.0)
+        self.assertEqual(nodes[0], (0,0,0))
+        # y
+        tort,nodes = fieldkit.domain.tortuosity(domain, axis=1)
+        self.assertEqual(len(tort),0)
+        # z
+        tort,nodes = fieldkit.domain.tortuosity(domain, axis=1)
+        self.assertEqual(len(tort),0)
+
+        ## three lines
+        self.field[:,0,0] = 1.
+        self.field[:,2,1] = 1.
+        self.field[:,1,2] = 1.
+        tort,nodes = fieldkit.domain.tortuosity(fieldkit.domain.digitize(self.field, 0.5), axis=0)
+        np.testing.assert_array_equal(nodes,((0,0,0),(0,1,2),(0,2,1)))
+        np.testing.assert_almost_equal(tort, (1.0, 1.0, 1.0))
+
+        ## single plane
+        self.field[:] = 0.
+        self.field[:,:,0] = 1.
+        domain = fieldkit.domain.digitize(self.field, 0.5)
+        # x
+        tort,nodes = fieldkit.domain.tortuosity(domain, axis=0)
+        self.assertEqual(len(tort),4)
+        np.testing.assert_array_equal(nodes, ((0,0,0),(0,1,0),(0,2,0),(0,3,0)))
+        np.testing.assert_almost_equal(tort, (1.0,1.0,1.0,1.0))
+        # y
+        tort,nodes = fieldkit.domain.tortuosity(domain, axis=1)
+        self.assertEqual(len(tort),4)
+        np.testing.assert_array_equal(nodes, ((0,0,0),(1,0,0),(2,0,0),(3,0,0)))
+        np.testing.assert_almost_equal(tort, (1.0,1.0,1.0,1.0))
+        # z
+        tort,nodes = fieldkit.domain.tortuosity(domain, axis=2)
+        self.assertEqual(len(tort),0)
+
+        ## twisted line
+        #
+        # Shape::
+        #   --
+        # -|  |-
+        #
+        # Total length = 6, tortuosity = 6/4 = 1.5
+        self.field[:] = 0.
+        for pt in ((0,0,0),(1,0,0),(1,1,0),(2,1,0),(3,1,0),(3,0,0)):
+            self.field[pt] = 1.
+        domain = fieldkit.domain.digitize(self.field, 0.5)
+        tort,nodes = fieldkit.domain.tortuosity(domain, axis=0)
+        self.assertEqual(len(tort),1)
+        self.assertAlmostEqual(tort[0], 1.5)
+
+        ## triclinic mesh with 45* tilt
+        tri_mesh = fieldkit.Mesh().from_lattice(N=4, lattice=fieldkit.HOOMDLattice(L=4.0, tilt=(1.0,0.,0.)))
+        tri_field = fieldkit.Field(tri_mesh).from_array(np.zeros(tri_mesh.shape))
+        # x: not tilted, so tortuosity of a line is 1
+        tri_field[:,0,0] = 1.
+        domain = fieldkit.domain.digitize(tri_field, 0.5)
+        tort,nodes = fieldkit.domain.tortuosity(domain, axis=0)
+        self.assertAlmostEqual(tort[0], 1.0)
+        # y: tilted by 45*, so tortuosity is sqrt(2) to account for longer path
+        tri_field[:] = 0.
+        tri_field[0,:,0] = 1.
+        domain = fieldkit.domain.digitize(tri_field, 0.5)
+        tort,nodes = fieldkit.domain.tortuosity(domain, axis=1)
+        self.assertAlmostEqual(tort[0], np.sqrt(2.))
+
 class DomainBurnTest(unittest.TestCase):
     """ Tests for burning algorithm
     """
@@ -116,8 +189,9 @@ class DomainBurnTest(unittest.TestCase):
         np.testing.assert_equal(burn[:,:,2], 2)
         np.testing.assert_equal(burn[:,:,3], 1)
         # check axis
-        np.testing.assert_equal(axis.shape, (4*4,3))
-        np.testing.assert_equal(axis[:,2], 2)
+        axis_nodes = np.asarray(axis.nodes)
+        np.testing.assert_equal(axis_nodes.shape, (4*4,3))
+        np.testing.assert_equal(axis_nodes[:,2], 2)
 
     def test_collide(self):
         mesh = fieldkit.Mesh().from_lattice(N=3, lattice=fieldkit.HOOMDLattice(L=4.))
@@ -132,5 +206,6 @@ class DomainBurnTest(unittest.TestCase):
         np.testing.assert_equal(burn[:,:,1], 1)
         np.testing.assert_equal(burn[:,:,2], 1)
         # check axis
-        np.testing.assert_equal(axis.shape, (2*3*3,3))
-        np.testing.assert_equal(axis[:,2], [1,2]*9)
+        axis_nodes = np.asarray(axis.nodes)
+        np.testing.assert_equal(axis_nodes.shape, (2*3*3,3))
+        np.testing.assert_equal(axis_nodes[:,2], [1,2]*9)

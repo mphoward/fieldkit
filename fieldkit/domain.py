@@ -100,9 +100,11 @@ def burn(domain):
 
     # iterate through while some burn numbers have not been determined
     k = 1
+    current_queue = tuple(domain.nodes)
+    next_queue = []
     while np.any(burn_number == BURN_SIGNAL):
         burn_vecs = {}
-        for pt in np.ndindex(burn_number.shape):
+        for pt in current_queue:
             # only work on unchecked points
             if burn_number[pt] != BURN_SIGNAL:
                 continue
@@ -121,6 +123,7 @@ def burn(domain):
             if len(burn_vecs[pt]) > 0:
                 burn_number[pt] = k
             else:
+                next_queue.append(pt)
                 continue
 
             # Fig. 2a: check for medial axis condition based on shared burning
@@ -157,11 +160,15 @@ def burn(domain):
                             v2 = tuple((pt - vi + vj) % domain.mesh.shape)
                             if burn_number[v1] == k-1 and burn_number[v2] == k-1:
                                 medial_axis[pt] = True
+
+        # advance to next iteration
+        current_queue = tuple(next_queue)
+        next_queue = []
         k += 1
 
 
-    # extract the indices corresponding to the medial axis
-    axis = domain.mesh.indices[medial_axis]
+    # extract domain of nodes corresponding to medial axis
+    axis = Domain(domain.mesh, domain.mesh.indices[medial_axis])
 
     return burn_number, axis
 
@@ -216,3 +223,61 @@ def is_percolated(domain, axis):
                 pass
 
     return percolate
+
+def tortuosity(domain, axis):
+    r""" Compute the tortousity of a domain from the shortest path length.
+
+    The tortuosity :math:`\tau` is computed as
+
+    .. math::
+
+        \tau = \frac{L}{a}
+
+    where *L* is the shortest path length within `domain` that connects a
+    `node` at the lower edge of the mesh given by `axis` to its periodic
+    image, while *a* is the distance between periodic images projected
+    along `axis`. That is, the tortuosity is geometrically defined as
+    the path length traversed between images divided by the distance that
+    could be obtained in a Cartesian basis.
+
+    Parameters
+    ----------
+    domain : :py:class:`~fieldkit.mesh.Domain`
+        The domain of nodes to look for paths through.
+    axis : int
+        The axis (0, 1, or 2) indicating the direction in which
+        to compute the tortuosity.
+
+    Returns
+    -------
+    tau : tuple
+        The tortuosity associated with various `nodes`
+    nodes : tuple
+        The list of `nodes` at the edge of `axis` from which the
+        tortuosity was computed.
+
+    """
+    g = domain.buffered_graph(axis)
+
+    nodes = []
+    paths = []
+    for btm in g:
+        if btm[axis] == 0:
+            top = list(btm)
+            top[axis] = domain.mesh.shape[axis]
+            top = tuple(top)
+
+            try:
+                length = networkx.dijkstra_path_length(g, btm, top)
+                nodes.append(btm)
+                paths.append(length)
+            except networkx.exception.NetworkXNoPath:
+                pass
+
+    # project the appropriate lattice vector onto the direction of interest
+    ortho_latt = domain.mesh.lattice.to_orthorhombic()
+    L = ortho_latt.L[axis]
+
+    # tortuosity is path distance / normal distance between planes
+    tau = np.asarray(paths) / L
+    return tuple(tau), tuple(nodes)
