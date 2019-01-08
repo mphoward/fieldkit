@@ -4,6 +4,8 @@
 
 import fieldkit.domain
 
+import fieldkit.io
+
 import fieldkit.lattice
 from fieldkit.lattice import *
 
