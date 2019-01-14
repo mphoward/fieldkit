@@ -1,0 +1,14 @@
+python module _measure
+    interface
+        subroutine minkowski(lattice,lx,ly,lz,volume,surface,curvature,euler)
+            integer dimension(lx,ly,lz), intent(in) :: lattice
+            integer, optional, intent(in), check(shape(lattice,0)==lx), depend(lattice) :: lx=shape(lattice,0)
+            integer, optional, intent(in), check(shape(lattice,1)==ly), depend(lattice) :: ly=shape(lattice,1)
+            integer, optional, intent(in), check(shape(lattice,2)==lz), depend(lattice) :: lz=shape(lattice,2)
+            integer intent(out) :: volume
+            integer intent(out) :: surface
+            integer intent(out) :: curvature
+            integer intent(out) :: euler
+        end subroutine minkowski
+    end interface
+end python module _measure

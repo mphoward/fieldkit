@@ -47,6 +47,39 @@ class MeasureTest(unittest.TestCase):
 
         self.assertAlmostEqual(area, 2*mesh.lattice.L[0]*mesh.lattice.L[1])
 
+    def test_minkowski(self):
+        """ Test Minkowski functionals for a slab domain with periodic boundaries.
+        """
+        mesh = fieldkit.Mesh().from_lattice(N=2, lattice=fieldkit.HOOMDLattice(L=4.0))
+        field = fieldkit.Field(mesh).from_array(np.zeros(mesh.shape))
+        field[:,:,0] = 1
+
+        ## check that the right values are computed (reference values determined by hand)
+        domain = fieldkit.domain.digitize(field, threshold=0.5)
+        V,S,B,chi = fieldkit.measure.minkowski(domain)
+        a = 2.0
+        self.assertAlmostEqual(V, 4*a**3)
+        self.assertAlmostEqual(S, 8*a**2)
+        self.assertAlmostEqual(B, 0*a)
+        self.assertEqual(chi, 0)
+
+        ## ensure an error is rasied for non-cubic lattices
+        # orthorhombic without extra mesh points
+        mesh = fieldkit.Mesh().from_lattice(N=2, lattice=fieldkit.HOOMDLattice(L=(4.0,6.0,8.0)))
+        field = fieldkit.Field(mesh).from_array(np.zeros(mesh.shape))
+        field[:,:,0] = 1
+        domain = fieldkit.domain.digitize(field, threshold=0.5)
+        with self.assertRaises(ValueError):
+            V,S,B,chi = fieldkit.measure.minkowski(domain)
+        # triclinic
+        mesh = fieldkit.Mesh().from_lattice(N=2, lattice=fieldkit.HOOMDLattice(L=4.0,tilt=[0.5,0.,0.]))
+        field = fieldkit.Field(mesh).from_array(np.zeros(mesh.shape))
+        field[:,:,0] = 1
+        domain = fieldkit.domain.digitize(field, threshold=0.5)
+        with self.assertRaises(ValueError):
+            V,S,B,chi = fieldkit.measure.minkowski(domain)
+
+
     def test_sphere(self):
         """ Test for measuring properties of a sphere
         """

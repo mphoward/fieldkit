@@ -4,6 +4,7 @@ from __future__ import division
 import numpy as np
 import skimage.measure
 from fieldkit.mesh import TriangulatedSurface
+import fieldkit._measure
 
 def volume(field, threshold, N, seed=None):
     """ Compute the volume for a domain.
@@ -93,3 +94,54 @@ def surface_area(surface):
 
     """
     return skimage.measure.mesh_surface_area(surface.vertex, np.asarray(surface.face))
+
+def minkowski(domain):
+    """ Compute the Minkowski functionals for a domain on a lattice.
+
+    The Minkowski functionals (volume, surface area, integral mean
+    curvature, and Euler characteristic) are evaluated for a digitized
+    :py:class:`~fieldkit.mesh.Domain`. The underlying
+    :py:class:`~fieldkit.mesh.Mesh` must have cubic voxels.
+
+    Parameters
+    ----------
+    domain : :py:class:`~fieldkit.mesh.Domain`
+        The digitized domain to measure.
+
+    Returns
+    -------
+    volume : float
+        The volume of the `domain`.
+    area : float
+        The surface area of the `domain`.
+    curvature : float
+        The integral mean curvature of the `domain`.
+    euler : int
+        The Euler characteristic of the `domain`.
+
+    Notes
+    -----
+    The calculations are performed using the equations and algorithms
+    outlined in::
+
+        K. Michielsen and H. De Raedt, Integral-geometry morphological
+        analysis, Physics Report 347, 461-538 (2001).
+
+    This algorithm restricts the calculation to cubic voxels.
+
+    """
+    # ensure cubic meshing
+    step = domain.mesh.step
+    if not np.isclose(step[0],step[1]) or not np.isclose(step[0],step[2]):
+        raise ValueError('Voxels in mesh must be cubic for Minkowski functionals.')
+
+    # minkowski functionals are computed as integers in Fortran
+    volume,area,curvature,euler = fieldkit._measure.minkowski(domain.mask)
+
+    # rescale integers into mesh distance units
+    a = step[0]
+    volume *= a**3
+    area *= a**2
+    curvature *= a
+
+    return volume,area,curvature,euler
