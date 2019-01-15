@@ -53,6 +53,25 @@ class MeshTest(unittest.TestCase):
         np.testing.assert_almost_equal(mesh.lattice.L, mesh2.lattice.L)
         np.testing.assert_almost_equal(mesh.lattice.matrix, mesh2.lattice.matrix)
 
+    def test_neighbor(self):
+        """ Test for determination of (single) neighbor site in mesh.
+        """
+        mesh = fieldkit.Mesh().from_lattice(N=3,lattice=fieldkit.HOOMDLattice(L=1))
+        # first
+        np.testing.assert_array_equal(mesh.neighbor((0,0,0),0), (1,0,0))
+        np.testing.assert_array_equal(mesh.neighbor((0,0,0),1), (2,0,0))
+        np.testing.assert_array_equal(mesh.neighbor((0,0,0),2), (0,1,0))
+        np.testing.assert_array_equal(mesh.neighbor((0,0,0),3), (0,2,0))
+        np.testing.assert_array_equal(mesh.neighbor((0,0,0),4), (0,0,1))
+        np.testing.assert_array_equal(mesh.neighbor((0,0,0),5), (0,0,2))
+        # last
+        np.testing.assert_array_equal(mesh.neighbor((2,2,2),0), (0,2,2))
+        np.testing.assert_array_equal(mesh.neighbor((2,2,2),1), (1,2,2))
+        np.testing.assert_array_equal(mesh.neighbor((2,2,2),2), (2,0,2))
+        np.testing.assert_array_equal(mesh.neighbor((2,2,2),3), (2,1,2))
+        np.testing.assert_array_equal(mesh.neighbor((2,2,2),4), (2,2,0))
+        np.testing.assert_array_equal(mesh.neighbor((2,2,2),5), (2,2,1))
+
     def test_neighbors(self):
         """ Test for determination of neighbor sites in mesh.
         """

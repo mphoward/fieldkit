@@ -208,6 +208,56 @@ class Mesh(object):
         """
         return np.moveaxis(np.indices(self.shape), 0, -1)
 
+    def neighbor(self, n, direction):
+        """ Get the index of the neighboring node in a direction.
+
+        The neighbors are subject to the periodic boundary conditions.
+        The directions to find neighbors are:
+
+        - 0: +*x*
+        - 1: -*x*
+        - 2: +*y*
+        - 3: -*y*
+        - 4: +*z*
+        - 5: -*z*
+
+        Parameters
+        ----------
+        n : array_like
+            Tuple giving the index in the mesh to find  the neighbor for.
+        direction : int
+            Integer corresponding to the neighbor node to find.
+
+        Returns
+        -------
+        tuple:
+            Index for the neighbor of `n` in the mesh along `direction`.
+
+        Notes
+        -----
+        The reason for using integers to define the direction is
+        convenience for selecting a *random* direction, e.g., using
+        `numpy.random.randint`. The switch statement is probably not the
+        most efficient way to determine the neighbors, but it keeps the
+        code simple.
+
+        """
+        i,j,k = n
+        if direction == 0:
+            return ((i+1) % self.shape[0], j, k)
+        elif direction == 1:
+            return ((i-1) % self.shape[0], j, k)
+        elif direction == 2:
+            return (i, (j+1) % self.shape[1], k)
+        elif direction == 3:
+            return (i, (j-1) % self.shape[1], k)
+        elif direction == 4:
+            return (i, j, (k+1) % self.shape[2])
+        elif direction == 5:
+            return (i, j, (k-1) % self.shape[2])
+        else:
+            raise ValueError('Neighbor direction must range from 0 to 5, inclusively.')
+
     def neighbors(self, n, full=True):
         """ Get the indexes of neighboring nodes subject to periodic boundaries.
 
@@ -226,21 +276,19 @@ class Mesh(object):
             neighbors of `n`.
 
         """
-        i,j,k = n
-
         neighs = []
         if self.shape[0] > 1:
-            neighs.append(((i+1) % self.shape[0], j, k))
+            neighs.append(self.neighbor(n,0))
         if full and self.shape[0] > 2:
-            neighs.append(((i-1) % self.shape[0], j, k))
+            neighs.append(self.neighbor(n,1))
         if self.shape[1] > 1:
-            neighs.append((i, (j+1) % self.shape[1], k))
+            neighs.append(self.neighbor(n,2))
         if full and self.shape[1] > 2:
-            neighs.append((i, (j-1) % self.shape[1], k))
+            neighs.append(self.neighbor(n,3))
         if self.shape[2] > 1:
-            neighs.append((i, j, (k+1) % self.shape[2]))
+            neighs.append(self.neighbor(n,4))
         if full and self.shape[2] > 2:
-            neighs.append((i, j, (k-1) % self.shape[2]))
+            neighs.append(self.neighbor(n,5))
         return tuple(neighs)
 
 class Field(object):
