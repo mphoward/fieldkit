@@ -53,6 +53,23 @@ class MeshTest(unittest.TestCase):
         np.testing.assert_almost_equal(mesh.lattice.L, mesh2.lattice.L)
         np.testing.assert_almost_equal(mesh.lattice.matrix, mesh2.lattice.matrix)
 
+    def test_wrap(self):
+        """ Test for node wrapping by mesh.
+        """
+        mesh = fieldkit.Mesh().from_lattice(N=3,lattice=fieldkit.HOOMDLattice(L=1))
+        # +x
+        n,im = mesh.wrap((3,0,0))
+        np.testing.assert_array_equal(n,(0,0,0))
+        np.testing.assert_array_equal(im,(1,0,0))
+        # -x,+y
+        n,im = mesh.wrap((-1,3,0))
+        np.testing.assert_array_equal(n,(2,0,0))
+        np.testing.assert_array_equal(im,(-1,1,0))
+        # -y,+z
+        n,im = mesh.wrap((1,-2,3))
+        np.testing.assert_array_equal(n,(1,1,0))
+        np.testing.assert_array_equal(im,(0,-1,1))
+
     def test_neighbor(self):
         """ Test for determination of (single) neighbor site in mesh.
         """

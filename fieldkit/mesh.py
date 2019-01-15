@@ -208,6 +208,55 @@ class Mesh(object):
         """
         return np.moveaxis(np.indices(self.shape), 0, -1)
 
+    def wrap(self, n):
+        """ Wrap a mesh point through the periodic boundaries.
+
+        Mesh points are wrapped through the boundaries by up to one image.
+
+        Parameters
+        ----------
+        n : array_like
+            The node to wrap.
+
+        Returns
+        -------
+        node : tuple
+            The wrapped node index.
+        image : tuple
+            The offsets required to reconstruct the original node point.
+
+        Notes
+        -----
+        No error checking is performed to ensure that the wrapped point actually
+        lies within the mesh. This could occur if the node to wrap lies more than
+        one image away. It is the caller's responsibility to ensure the one-image
+        condition is satisfied.
+
+        Examples
+        --------
+        The original index `n` can be reconstructed by adding the mesh shape
+        to the wrapped node::
+
+            >>> node,image = mesh.wrap(n)
+            >>> n == node + image * mesh.shape
+            True
+
+
+        """
+        node = list(n)
+        image = [0,0,0]
+        for ax in range(3):
+            # below box, shift up
+            if node[ax] < 0:
+                node[ax] += self.shape[ax]
+                image[ax] -= 1
+            # above box, shift down
+            elif node[ax] >= self.shape[ax]:
+                node[ax] -= self.shape[ax]
+                image[ax] += 1
+
+        return tuple(node),tuple(image)
+
     def neighbor(self, n, direction):
         """ Get the index of the neighboring node in a direction.
 
