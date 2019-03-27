@@ -115,7 +115,7 @@ def minkowski(domain):
     area : float
         The surface area of the `domain`.
     curvature : float
-        The integral mean curvature of the `domain`.
+        The integrated mean curvature of the `domain`.
     euler : int
         The Euler characteristic of the `domain`.
 
@@ -142,6 +142,6 @@ def minkowski(domain):
     a = step[0]
     volume *= a**3
     area *= a**2
-    curvature *= a
+    curvature *= a*np.pi
 
     return volume,area,curvature,euler

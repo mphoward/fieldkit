@@ -199,9 +199,9 @@ class Mesh(object):
         --------
         The indices can be converted into a flat list by reshaping::
 
-            mesh.indices.reshape(mesh.shape, 3)
+            mesh.indices.reshape((np.prod(mesh.shape), 3))
 
-        The output of this command should be equivalent to::
+        The output of that command should be equivalent to::
 
             np.array([n for n in np.ndindex(mesh.shape)])
 
