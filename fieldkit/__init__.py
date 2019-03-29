@@ -14,4 +14,6 @@ import fieldkit.measure
 import fieldkit.mesh
 from fieldkit.mesh import *
 
+import fieldkit.simulate
+
 import fieldkit.test

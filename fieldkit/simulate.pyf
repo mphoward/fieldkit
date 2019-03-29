@@ -1,0 +1,16 @@
+python module _simulate
+    interface
+        subroutine random_walk(domain,lx,ly,lz,coord,image,n,steps)
+            integer dimension(lx,ly,lz),intent(in) :: domain
+            integer, optional,intent(in),check(shape(domain,0)==lx),depend(domain) :: lx=shape(domain,0)
+            integer, optional,intent(in),check(shape(domain,1)==ly),depend(domain) :: ly=shape(domain,1)
+            integer, optional,intent(in),check(shape(domain,2)==lz),depend(domain) :: lz=shape(domain,2)
+            integer dimension(3,n),intent(inout) :: coord
+            integer dimension(3,n),intent(inout),depend(n) :: image
+            integer, optional,intent(in),check(shape(coord,1)==n),depend(coord) :: n=shape(coord,1)
+            integer intent(in) :: steps
+        end subroutine random_walk
+        subroutine init_random_seed()
+        end subroutine init_random_seed
+    end interface
+end python module _simulate
