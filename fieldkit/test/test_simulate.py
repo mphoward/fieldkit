@@ -29,8 +29,8 @@ class RandomWalkTest(unittest.TestCase):
         self.assertTrue(np.all(x >= 0))
         self.assertTrue(np.all(x < 3))
 
-        # walk cannot enter x = 0
-        self.assertTrue(np.all(traj[:,:,0] != 0))
+        # walk cannot enter z = 0
+        self.assertTrue(np.all(traj[:,:,2] != 0))
 
         # with 10 steps, a particle cannot have traveled more than 3 images
         self.assertTrue(np.all(im >= -3))
