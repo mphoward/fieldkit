@@ -65,13 +65,32 @@ class RandomWalkTest(unittest.TestCase):
         field = fieldkit.Field(mesh).from_array(np.ones(mesh.shape))
         domain = fieldkit.domain.digitize(field, threshold=0.5)
 
-        # displacement over 5 steps should be consistent with random walk
-        traj,_,_ = fieldkit.simulate.random_walk(domain, N=1000, steps=3, runs=1000)
-        msd = np.zeros(3)
+        # displacement should be consistent with random walk
+        traj,_,_ = fieldkit.simulate.random_walk(domain, N=4000, steps=3, runs=1000)
+        window = 3
+        msd = np.zeros((window+1,3))
+        samples = np.zeros(window+1, dtype=np.int32)
         for i,ri in enumerate(traj[:-1]):
-            rj = traj[i+1]
-            dr = rj-ri
-            msd += np.mean(dr*dr,axis=0)
-        msd /= len(traj)-1
+            for dt in range(1,min(window+1,traj.shape[0]-i)):
+                rj = traj[i+dt]
+                dr = rj-ri
+                msd[dt] += np.mean(dr*dr,axis=0)
+                samples[dt] += 1
+        flags = samples > 0
+        for ax in range(3):
+            msd[flags,ax] /= samples[flags]
+        np.testing.assert_array_almost_equal(msd[0], (0.,0.,0.), decimal=3)
+        np.testing.assert_array_almost_equal(msd[1], (1.,1.,1.), decimal=3)
+        np.testing.assert_array_almost_equal(msd[2], (2.,2.,2.), decimal=2)
+        np.testing.assert_array_almost_equal(msd[3], (3.,3.,3.), decimal=2)
 
-        np.testing.assert_array_almost_equal(msd, (1.,1.,1.), decimal=3)
+        # use compiled code to test farther out
+        msd_2 = fieldkit.simulate.msd(traj,window=window)
+        self.assertEqual(msd_2.shape, (window+1,3))
+        np.testing.assert_array_almost_equal(msd_2[0], (0.,0.,0.), decimal=3)
+        np.testing.assert_array_almost_equal(msd_2[1], (1.,1.,1.), decimal=3)
+        np.testing.assert_array_almost_equal(msd_2[2], (2.,2.,2.), decimal=2)
+        np.testing.assert_array_almost_equal(msd_2[3], (3.,3.,3.), decimal=2)
+
+        # both results should be essentially the same
+        np.testing.assert_array_almost_equal(msd,msd_2)

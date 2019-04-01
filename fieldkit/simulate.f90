@@ -108,3 +108,51 @@ real*8 r
 call random_number(r)
 choice = floor(n*r)
 end subroutine
+
+!> @brief Computes the mean-square displacement of a trajectory.
+!!
+!! @param[in]   traj    Trajectory to analyze.
+!! @param[in]   runs    Number of runs in the trajectory.
+!! @param[in]   N       Number of particles in the trajectory.
+!! @param[out]  rsq     Component-wise mean-square displacement.
+!! @param[in]   window  Time window for computing the MSD.
+!!
+!! The traj should be a 3xrunsxN multidimensional array. The
+!! msd is evaluated over the window (inclusive), so the shape of
+!! rsq is 3x(window+1). (The first entry are the trivial zeros.)
+!!
+subroutine msd(traj,runs,N,rsq,window)
+implicit none
+real*8, intent(in), dimension(0:2,0:runs-1,0:N-1) :: traj
+integer, intent(in) :: runs,N
+real*8, intent(out), dimension(0:2, 0:window) :: rsq
+integer, intent(in) :: window
+
+! internal variables for computing and accumulating the msd
+real*8, dimension(0:2) :: r0,dr
+integer i,t0,dt,ax
+integer, dimension(0:window) :: counts
+
+! compute msd by iterating through trajectory
+rsq = 0.
+counts = 0
+do i = 0,N-1
+    do t0 = 0,runs-2
+        r0 = traj(:,t0,i)
+        do dt = 1,min(window,runs-1-t0)
+            dr = traj(:,t0+dt,i) - r0
+            do ax = 0,2
+                rsq(ax,dt) = rsq(ax,dt) + dr(ax)*dr(ax)
+            enddo
+            counts(dt) = counts(dt) + 1
+        enddo
+    enddo
+enddo
+
+! normalize by number of counts
+do t0 = 0,window
+    if (counts(t0) > 0) then
+        rsq(:,t0) = rsq(:,t0) / counts(t0)
+    endif
+enddo
+end subroutine

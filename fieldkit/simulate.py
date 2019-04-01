@@ -89,3 +89,50 @@ def random_walk(domain, N, runs, steps, coords=None, images=None):
         fieldkit._simulate.random_walk(domain.mask, coords, images, steps)
 
     return trajectory,coords.transpose(),images.transpose()
+
+def msd(trajectory, window):
+    r""" Compute the mean-square displacement of a simulated trajectory.
+
+    The mean-square displacement (MSD)
+
+    .. math:: \langle (\mathbf{r}(t) - \mathbf{r}(0))^2 \rangle
+
+    is evaluated using multiple time origins up to a maximum time (`window`).
+    The MSD at :math:`t=0` is trivially 0; the remainder of the MSD can
+    be used to determine, e.g., the diffusion coefficient. This method
+    resolves each component of the MSD independently.
+
+    Parameters
+    ----------
+    trajectory : array_like
+        A `runsxNx3` array-like object containing the unwrapped coordinates.
+    window : int
+        Time window (number of runs) for evaluating the MSD.
+
+    Returns
+    -------
+    rsq : numpy.ndarray
+        A `(window+1)x3` NumPy array of the MSD.
+
+    Examples
+    --------
+    The three-dimensional MSD can be determined by summing its components::
+
+        >>> msd = fieldkit.simulate.msd(trajectory,window=10)
+        >>> msd.shape
+        (11,3)
+        >>> rsq = np.sum(msd,axis=1)
+
+    Notes
+    -----
+    This method internally calls a Fortran function to efficient perform the
+    calculations. It will create a copy of the `trajectory` that is in a
+    Fortran-efficient memory layout and shape using the double-precision
+    floating point data type. Hence, the coordinates for `trajectory` can be
+    any real-space positions, and do not need to be only the node coordinates
+    returned by :py:meth:`random_walk`.
+
+    """
+    t = np.asfortranarray(np.rollaxis(trajectory,2),dtype=np.float64)
+    rsq = fieldkit._simulate.msd(t,window)
+    return rsq.transpose()
