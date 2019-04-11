@@ -112,7 +112,7 @@ def read_polyfts(filename):
                 xfrac = np.array([ix,iy,iz],dtype=float)
                 xfrac = xfrac[:ndim] / Nx
 
-                xcart = [0., 0., 0.]
+                xcart = [0.]*ndim
                 for i in range(ndim):
                     for j in range(ndim):
                         xcart[j] += h[i][j]*xfrac[i]
