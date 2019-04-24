@@ -12,12 +12,25 @@ python module _simulate
         end subroutine random_walk
         subroutine init_random_seed()
         end subroutine init_random_seed
-        subroutine msd(traj,runs,n,rsq,window)
+        subroutine msd(traj,runs,n,rsq,window,every)
             real*8 dimension(3,runs,n),intent(in) :: traj
             integer, optional,intent(in),check(shape(traj,1)==runs),depend(traj) :: runs=shape(traj,1)
             integer, optional,intent(in),check(shape(traj,2)==n),depend(traj) :: n=shape(traj,2)
             real*8 dimension(3,window + 1),intent(out),depend(window) :: rsq
             integer intent(in) :: window
+            integer intent(in) :: every
         end subroutine msd
+        subroutine msd_binned(traj,runs,n,axis,bins,lo,hi,rsq,window,every)
+            real*8 dimension(3,runs,n),intent(in) :: traj
+            integer, optional,intent(in),check(shape(traj,1)==runs),depend(traj) :: runs=shape(traj,1)
+            integer, optional,intent(in),check(shape(traj,2)==n),depend(traj) :: n=shape(traj,2)
+            integer intent(in) :: axis
+            integer intent(in) :: bins
+            real*8 intent(in) :: lo
+            real*8 intent(in) :: hi
+            real*8 dimension(3,window + 1,bins),intent(out),depend(window,bins) :: rsq
+            integer intent(in) :: window
+            integer intent(in) :: every
+        end subroutine msd_binned
     end interface
 end python module _simulate

@@ -94,3 +94,86 @@ class RandomWalkTest(unittest.TestCase):
 
         # both results should be essentially the same
         np.testing.assert_array_almost_equal(msd,msd_2)
+
+        # use every 2nd origin with a looser tolerance due to lower stats
+        msd_3 = fieldkit.simulate.msd(traj,window=window,every=2)
+        self.assertEqual(msd_3.shape, (window+1,3))
+        np.testing.assert_array_almost_equal(msd_3[0], (0.,0.,0.), decimal=3)
+        np.testing.assert_array_almost_equal(msd_3[1], (1.,1.,1.), decimal=2)
+        np.testing.assert_array_almost_equal(msd_3[2], (2.,2.,2.), decimal=2)
+        np.testing.assert_array_almost_equal(msd_3[3], (3.,3.,3.), decimal=2)
+
+    def test_msd_binned(self):
+        """ Test binned MSD compared to bulk MSD calculator.
+
+        The simulation is constructed so that the MSD = 1 for each component after 1 run.
+
+        """
+        # dummy trajectory
+        traj = np.zeros((4,3,3))
+        traj[0,:] = [[0,0,0],[-1.9, 0, 0],[1.5,3,7]]
+        traj[1,:] = [[0.1,2,-1],[-1.8,-1,3],[1.6,4,8]]
+        traj[2,:] = [[0.2,4,-2],[-1.7,-2,6],[1.7,5,9]]
+        traj[3,:] = [[0.3,6,-3],[-1.6,-3,9],[1.8,6,10]]
+
+        # msd from binned
+        msd_bin,edges = fieldkit.simulate.msd_binned(traj, window=1, axis=0, bins=8, range=(-2,2))
+        self.assertEqual(msd_bin.shape, (8,2,3))
+        self.assertEqual(edges.shape, (9,))
+        np.testing.assert_array_almost_equal(edges,(-2.,-1.5,-1.0,-0.5,0.,0.5,1.0,1.5,2.0))
+
+        # only bins 0, 4, and 7 have particles contributing
+        np.testing.assert_array_almost_equal(msd_bin[0], ((0.,0.,0.),(1.e-2,1.,9.)))
+        np.testing.assert_array_almost_equal(msd_bin[1], ((0.,0.,0.),(0.,0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[2], ((0.,0.,0.),(0.,0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[3], ((0.,0.,0.),(0.,0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[4], ((0.,0.,0.),(1.e-2,4.,1.)))
+        np.testing.assert_array_almost_equal(msd_bin[5], ((0.,0.,0.),(0.,0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[6], ((0.,0.,0.),(0.,0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[7], ((0.,0.,0.),(1.e-2,1.,1.)))
+
+        # repeat using every other origin, should give identical result
+        msd_bin,_ = fieldkit.simulate.msd_binned(traj, window=1, axis=0, bins=8, range=(-2,2), every=2)
+        self.assertEqual(msd_bin.shape, (8,2,3))
+        np.testing.assert_array_almost_equal(msd_bin[0], ((0.,0.,0.),(1.e-2,1.,9.)))
+        np.testing.assert_array_almost_equal(msd_bin[1], ((0.,0.,0.),(0.,0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[2], ((0.,0.,0.),(0.,0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[3], ((0.,0.,0.),(0.,0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[4], ((0.,0.,0.),(1.e-2,4.,1.)))
+        np.testing.assert_array_almost_equal(msd_bin[5], ((0.,0.,0.),(0.,0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[6], ((0.,0.,0.),(0.,0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[7], ((0.,0.,0.),(1.e-2,1.,1.)))
+
+        # error to have a particle outside the low range
+        with self.assertRaises(ValueError):
+            msd_bin,_ = fieldkit.simulate.msd_binned(traj, window=1, axis=0, bins=4, range=(-1,2))
+
+        # error to have a particle >= the high range
+        with self.assertRaises(ValueError):
+            msd_bin,_ = fieldkit.simulate.msd_binned(traj, window=1, axis=0, bins=4, range=(-2,1.8))
+
+        # roll the trajectory so binning is done along y
+        traj = np.roll(traj, shift=1, axis=2)
+        msd_bin,_ = fieldkit.simulate.msd_binned(traj, window=1, axis=1, bins=8, range=(-2,2))
+        self.assertEqual(msd_bin.shape, (8,2,3))
+        np.testing.assert_array_almost_equal(msd_bin[0], ((0.,0.,0.),(9.,1.e-2,1.)))
+        np.testing.assert_array_almost_equal(msd_bin[1], ((0.,0.,0.),(0.,0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[2], ((0.,0.,0.),(0.,0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[3], ((0.,0.,0.),(0.,0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[4], ((0.,0.,0.),(1.,1.e-2,4.)))
+        np.testing.assert_array_almost_equal(msd_bin[5], ((0.,0.,0.),(0.,0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[6], ((0.,0.,0.),(0.,0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[7], ((0.,0.,0.),(1.,1.e-2,1.)))
+
+        # roll again so binning is done along z
+        traj = np.roll(traj, shift=1, axis=2)
+        msd_bin,_ = fieldkit.simulate.msd_binned(traj, window=1, axis=2, bins=8, range=(-2,2))
+        self.assertEqual(msd_bin.shape, (8,2,3))
+        np.testing.assert_array_almost_equal(msd_bin[0], ((0.,0.,0.),(1.,9.,1.e-2)))
+        np.testing.assert_array_almost_equal(msd_bin[1], ((0.,0.,0.),(0.,0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[2], ((0.,0.,0.),(0.,0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[3], ((0.,0.,0.),(0.,0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[4], ((0.,0.,0.),(4.,1.,1.e-2)))
+        np.testing.assert_array_almost_equal(msd_bin[5], ((0.,0.,0.),(0.,0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[6], ((0.,0.,0.),(0.,0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[7], ((0.,0.,0.),(1.,1.,1.e-2)))

@@ -116,17 +116,18 @@ end subroutine
 !! @param[in]   N       Number of particles in the trajectory.
 !! @param[out]  rsq     Component-wise mean-square displacement.
 !! @param[in]   window  Time window for computing the MSD.
+!! @param[in]   every   Number of runs between time origins.
 !!
 !! The traj should be a 3xrunsxN multidimensional array. The
 !! msd is evaluated over the window (inclusive), so the shape of
 !! rsq is 3x(window+1). (The first entry are the trivial zeros.)
 !!
-subroutine msd(traj,runs,N,rsq,window)
+subroutine msd(traj,runs,N,rsq,window,every)
 implicit none
 real*8, intent(in), dimension(0:2,0:runs-1,0:N-1) :: traj
 integer, intent(in) :: runs,N
 real*8, intent(out), dimension(0:2, 0:window) :: rsq
-integer, intent(in) :: window
+integer, intent(in) :: window,every
 
 ! internal variables for computing and accumulating the msd
 real*8, dimension(0:2) :: r0,dr
@@ -137,7 +138,7 @@ integer, dimension(0:window) :: counts
 rsq = 0.
 counts = 0
 do i = 0,N-1
-    do t0 = 0,runs-2
+    do t0 = 0,runs-2,every
         r0 = traj(:,t0,i)
         do dt = 1,min(window,runs-1-t0)
             dr = traj(:,t0+dt,i) - r0
@@ -154,5 +155,69 @@ do t0 = 0,window
     if (counts(t0) > 0) then
         rsq(:,t0) = rsq(:,t0) / counts(t0)
     endif
+enddo
+end subroutine
+
+!> @brief Computes the mean-square displacement of a trajectory with origin binning.
+!!
+!! @param[in]   traj    Trajectory to analyze.
+!! @param[in]   runs    Number of runs in the trajectory.
+!! @param[in]   N       Number of particles in the trajectory.
+!! @param[in]   axis    Coordinate to use for binning.
+!! @param[in]   bins    Number of bins along axis.
+!! @param[in]   lo      Lower bound for binning.
+!! @param[in]   hi      Upper bound for binning.
+!! @param[out]  rsq     Component-wise mean-square displacement for each origin.
+!! @param[in]   window  Time window for computing the MSD.
+!! @param[in]   every   Number of runs between time origins.
+!!
+!! The traj should be a 3xrunsxN multidimensional array. The
+!! msd is evaluated over the window (inclusive), so the shape of
+!! rsq is 3x(window+1)xbins. (The first entry are the trivial zeros.)
+!!
+!! This subroutine assumes that all binning coordinates will lie within the
+!! range defined by [lo, hi). Undefined behavior will occur otherwise.
+!!
+subroutine msd_binned(traj,runs,N,axis,bins,lo,hi,rsq,window,every)
+implicit none
+real*8, intent(in), dimension(0:2,0:runs-1,0:N-1) :: traj
+integer, intent(in) :: runs,N,axis,bins
+real*8, intent(in) :: lo,hi
+real*8, intent(out), dimension(0:2,0:window,0:bins-1) :: rsq
+integer, intent(in) :: window,every
+
+! internal variables for computing and accumulating the msd
+real*8 inv_bin_width
+integer bin0
+real*8, dimension(0:2) :: r0,dr
+integer i,t0,dt,ax
+integer, dimension(0:window,0:bins-1) :: counts
+
+! compute msd by iterating through trajectory
+inv_bin_width = bins/(hi-lo)
+rsq = 0.
+counts = 0
+do i = 0,N-1
+    do t0 = 0,runs-2,every
+        r0 = traj(:,t0,i)
+        bin0 = int((r0(axis)-lo)*inv_bin_width)
+
+        do dt = 1,min(window,runs-1-t0)
+            dr = traj(:,t0+dt,i) - r0
+            do ax = 0,2
+                rsq(ax,dt,bin0) = rsq(ax,dt,bin0) + dr(ax)*dr(ax)
+            enddo
+            counts(dt,bin0) = counts(dt,bin0) + 1
+        enddo
+    enddo
+enddo
+
+! normalize by number of counts
+do i = 0,bins-1
+    do t0 = 0,window
+        if (counts(t0,i) > 0) then
+            rsq(:,t0,i) = rsq(:,t0,i) / counts(t0,i)
+        endif
+    enddo
 enddo
 end subroutine
