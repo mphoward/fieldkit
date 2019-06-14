@@ -159,8 +159,8 @@ def msd_binned(trajectory, window, axis, bins, range, every=1):
     centered at :math:`r_\alpha`, where the axis :math:`\alpha` can be any of
     the Cartesian coordinates. The slabs are defined by a *range* along :math:`\alpha`
     and the number of *bins* in that range, similarly to the NumPy histogram method.
-    The :math:`\alpha` coordinate of all particles in the *trajectory* must lie
-    within *range*, or an error will be raised.
+    The calculation is only performed on time origins in the *trajectory* when the
+    :math:`\alpha` coordinate of a particles lies within *range*.
 
     Parameters
     ----------
@@ -209,10 +209,6 @@ def msd_binned(trajectory, window, axis, bins, range, every=1):
     returned by :py:meth:`random_walk`.
 
     """
-    # ensure all coordinates lie within range
-    if np.any(trajectory[...,axis] < range[0]) or np.any(trajectory[...,axis] >= range[1]):
-        raise ValueError('All coordinates along axis {} must lie in range [{},{})'.format(axis,range[0],range[1]))
-
     t = np.asfortranarray(np.rollaxis(trajectory,2),dtype=np.float64)
     rsq = fieldkit._simulate.msd_binned(t,axis,bins,range[0],range[1],window,every)
     edges = np.linspace(range[0],range[1],bins+1)

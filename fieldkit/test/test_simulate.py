@@ -144,13 +144,17 @@ class RandomWalkTest(unittest.TestCase):
         np.testing.assert_array_almost_equal(msd_bin[6], ((0.,0.,0.),(0.,0.,0.)))
         np.testing.assert_array_almost_equal(msd_bin[7], ((0.,0.,0.),(1.e-2,1.,1.)))
 
-        # error to have a particle outside the low range
-        with self.assertRaises(ValueError):
-            msd_bin,_ = fieldkit.simulate.msd_binned(traj, window=1, axis=0, bins=4, range=(-1,2))
+        # compute with a range that no particles lie in, should give all zeros
+        msd_bin,_ = fieldkit.simulate.msd_binned(traj, window=1, axis=0, bins=1, range=(-1.5,-0.1))
+        self.assertEqual(msd_bin.shape, (1,2,3))
+        np.testing.assert_array_almost_equal(msd_bin[0], ((0.,0.,0.),(0.,0.,0.)))
 
-        # error to have a particle >= the high range
-        with self.assertRaises(ValueError):
-            msd_bin,_ = fieldkit.simulate.msd_binned(traj, window=1, axis=0, bins=4, range=(-2,1.8))
+        # repeat for the window that only the first particle lies in
+        msd_bin,_ = fieldkit.simulate.msd_binned(traj, window=1, axis=0, bins=3, range=(0,0.6))
+        self.assertEqual(msd_bin.shape, (3,2,3))
+        np.testing.assert_array_almost_equal(msd_bin[0], ((0.,0.,0.),(1.e-2,4.,1.)))
+        np.testing.assert_array_almost_equal(msd_bin[1], ((0.,0.,0.),(1.e-2,4.,1.)))
+        np.testing.assert_array_almost_equal(msd_bin[2], ((0.,0.,0.),(0.,0.,0.)))
 
         # roll the trajectory so binning is done along y
         traj = np.roll(traj, shift=1, axis=2)

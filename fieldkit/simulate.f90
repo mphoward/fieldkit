@@ -175,9 +175,6 @@ end subroutine
 !! msd is evaluated over the window (inclusive), so the shape of
 !! rsq is 3x(window+1)xbins. (The first entry are the trivial zeros.)
 !!
-!! This subroutine assumes that all binning coordinates will lie within the
-!! range defined by [lo, hi). Undefined behavior will occur otherwise.
-!!
 subroutine msd_binned(traj,runs,N,axis,bins,lo,hi,rsq,window,every)
 implicit none
 real*8, intent(in), dimension(0:2,0:runs-1,0:N-1) :: traj
@@ -200,15 +197,18 @@ counts = 0
 do i = 0,N-1
     do t0 = 0,runs-2,every
         r0 = traj(:,t0,i)
-        bin0 = int((r0(axis)-lo)*inv_bin_width)
+        bin0 = floor((r0(axis)-lo)*inv_bin_width)
 
-        do dt = 1,min(window,runs-1-t0)
-            dr = traj(:,t0+dt,i) - r0
-            do ax = 0,2
-                rsq(ax,dt,bin0) = rsq(ax,dt,bin0) + dr(ax)*dr(ax)
+        ! silently ignore particles starting out of bin range
+        if (bin0 >= 0 .AND. bin0 < bins) then
+            do dt = 1,min(window,runs-1-t0)
+                dr = traj(:,t0+dt,i) - r0
+                do ax = 0,2
+                    rsq(ax,dt,bin0) = rsq(ax,dt,bin0) + dr(ax)*dr(ax)
+                enddo
+                counts(dt,bin0) = counts(dt,bin0) + 1
             enddo
-            counts(dt,bin0) = counts(dt,bin0) + 1
-        enddo
+        endif
     enddo
 enddo
 
