@@ -231,4 +231,4 @@ class HOOMDLattice(Lattice):
         try:
             super().__init__(a,b,c)
         except:
-            super(Lattice, self).__init__(a,b,c)
+            super(HOOMDLattice, self).__init__(a,b,c)
