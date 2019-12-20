@@ -181,3 +181,136 @@ class RandomWalkTest(unittest.TestCase):
         np.testing.assert_array_almost_equal(msd_bin[5], ((0.,0.,0.),(0.,0.,0.)))
         np.testing.assert_array_almost_equal(msd_bin[6], ((0.,0.,0.),(0.,0.,0.)))
         np.testing.assert_array_almost_equal(msd_bin[7], ((0.,0.,0.),(1.,1.,1.e-2)))
+
+    def test_msd_survival(self):
+        """ Test binned MSD compared to bulk MSD calculator.
+
+        The simulation is constructed so that the MSD = 1 for each component after 1 run.
+
+        """
+        # dummy trajectory
+        traj = np.zeros((4,3,3))
+        traj[0,:] = [[0,0,0],[-1.9, 0, 0],[1.5,3,7]]
+        traj[1,:] = [[0.1,2,-1],[-1.8,-1,3],[1.6,4,8]]
+        traj[2,:] = [[0.2,4,-2],[-1.7,-2,6],[1.7,5,9]]
+        traj[3,:] = [[0.3,6,-3],[-1.6,-3,9],[1.8,6,10]]
+
+        # msd from binned
+        msd_bin,counts,edges = fieldkit.simulate.msd_survival(traj, window=1, axis=0, bins=8, range=(-2,2))
+        self.assertEqual(msd_bin.shape, (8,2,2))
+        self.assertEqual(counts.shape, (8,2))
+        self.assertEqual(edges.shape, (9,))
+        np.testing.assert_array_almost_equal(edges,(-2.,-1.5,-1.0,-0.5,0.,0.5,1.0,1.5,2.0))
+
+        # check counts
+        np.testing.assert_array_equal(counts[0], (3,3))
+        np.testing.assert_array_equal(counts[1], (0,0))
+        np.testing.assert_array_equal(counts[2], (0,0))
+        np.testing.assert_array_equal(counts[3], (0,0))
+        np.testing.assert_array_equal(counts[4], (3,3))
+        np.testing.assert_array_equal(counts[5], (0,0))
+        np.testing.assert_array_equal(counts[6], (0,0))
+        np.testing.assert_array_equal(counts[7], (3,3))
+
+        # only bins 0, 4, and 7 have particles contributing
+        np.testing.assert_array_almost_equal(msd_bin[0], ((0.,0.),(1.,9.)))
+        np.testing.assert_array_almost_equal(msd_bin[1], ((0.,0.),(0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[2], ((0.,0.),(0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[3], ((0.,0.),(0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[4], ((0.,0.),(4.,1.)))
+        np.testing.assert_array_almost_equal(msd_bin[5], ((0.,0.),(0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[6], ((0.,0.),(0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[7], ((0.,0.),(1.,1.)))
+
+        # repeat using every other origin, should give identical result
+        msd_bin,_,_ = fieldkit.simulate.msd_survival(traj, window=1, axis=0, bins=8, range=(-2,2), every=2)
+        self.assertEqual(msd_bin.shape, (8,2,2))
+        np.testing.assert_array_almost_equal(msd_bin[0], ((0.,0.),(1.,9.)))
+        np.testing.assert_array_almost_equal(msd_bin[1], ((0.,0.),(0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[2], ((0.,0.),(0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[3], ((0.,0.),(0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[4], ((0.,0.),(4.,1.)))
+        np.testing.assert_array_almost_equal(msd_bin[5], ((0.,0.),(0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[6], ((0.,0.),(0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[7], ((0.,0.),(1.,1.)))
+
+        # compute with a range that no particles lie in, should give all zeros
+        msd_bin,_,_ = fieldkit.simulate.msd_survival(traj, window=1, axis=0, bins=1, range=(-1.5,-0.1))
+        self.assertEqual(msd_bin.shape, (1,2,2))
+        np.testing.assert_array_almost_equal(msd_bin[0], ((0.,0.),(0.,0.)))
+
+        # roll the trajectory so binning is done along y
+        traj = np.roll(traj, shift=1, axis=2)
+        msd_bin,_,_ = fieldkit.simulate.msd_survival(traj, window=1, axis=1, bins=8, range=(-2,2))
+        self.assertEqual(msd_bin.shape, (8,2,2))
+        np.testing.assert_array_almost_equal(msd_bin[0], ((0.,0.),(9.,1.)))
+        np.testing.assert_array_almost_equal(msd_bin[1], ((0.,0.),(0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[2], ((0.,0.),(0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[3], ((0.,0.),(0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[4], ((0.,0.),(1.,4.)))
+        np.testing.assert_array_almost_equal(msd_bin[5], ((0.,0.),(0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[6], ((0.,0.),(0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[7], ((0.,0.),(1.,1.)))
+
+        # roll again so binning is done along z
+        traj = np.roll(traj, shift=1, axis=2)
+        msd_bin,_,_ = fieldkit.simulate.msd_survival(traj, window=1, axis=2, bins=8, range=(-2,2))
+        self.assertEqual(msd_bin.shape, (8,2,2))
+        np.testing.assert_array_almost_equal(msd_bin[0], ((0.,0.),(1.,9.)))
+        np.testing.assert_array_almost_equal(msd_bin[1], ((0.,0.),(0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[2], ((0.,0.),(0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[3], ((0.,0.),(0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[4], ((0.,0.),(4.,1.)))
+        np.testing.assert_array_almost_equal(msd_bin[5], ((0.,0.),(0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[6], ((0.,0.),(0.,0.)))
+        np.testing.assert_array_almost_equal(msd_bin[7], ((0.,0.),(1.,1.)))
+
+        # TODO: test when a particle exits the bin
+
+    def test_msd_survival_cylinder(self):
+        """ Test radially binned MSD."""
+        # dummy radial and axial coordinates
+        r = np.zeros((4,3))
+        r[0,:] = [0.0,1.5,2.5]
+        r[1,:] = [0.3,1.3,2.5]
+        r[2,:] = [0.6,1.1,2.5]
+        r[3,:] = [0.9,1.01,2.5]
+        # 0 has D = 1, 1 has D = 2, 2 has D = 3
+        z = np.zeros((4,3))
+        z[0,:] = [1,-2,0]
+        z[1,:] = [2,-4,3]
+        z[2,:] = [3,-6,6]
+        z[3,:] = [4,-8,9]
+
+        # msd from binned
+        msd_bin,counts,edges = fieldkit.simulate.msd_survival_cylinder(r, z, window=1, bins=4, range=(0,4))
+        self.assertEqual(msd_bin.shape, (4,2))
+        self.assertEqual(counts.shape, (4,2))
+        self.assertEqual(edges.shape, (5,))
+        np.testing.assert_array_almost_equal(edges,(0,1,2,3,4))
+
+        # check counts
+        np.testing.assert_array_equal(counts[0], (3,3))
+        np.testing.assert_array_equal(counts[1], (3,3))
+        np.testing.assert_array_equal(counts[2], (3,3))
+        np.testing.assert_array_equal(counts[3], (0,0))
+
+        # only bins 0, 1, and 2 have particles contributing
+        np.testing.assert_array_almost_equal(msd_bin[0], (0,1))
+        np.testing.assert_array_almost_equal(msd_bin[1], (0,4))
+        np.testing.assert_array_almost_equal(msd_bin[2], (0,9))
+        np.testing.assert_array_almost_equal(msd_bin[3], (0,0))
+
+        # repeat using every other origin, should give identical result
+        msd_bin,_,_ = fieldkit.simulate.msd_survival_cylinder(r, z, window=1, bins=4, range=(0,4), every=2)
+        self.assertEqual(msd_bin.shape, (4,2))
+        np.testing.assert_array_almost_equal(msd_bin[0], (0,1))
+        np.testing.assert_array_almost_equal(msd_bin[1], (0,4))
+        np.testing.assert_array_almost_equal(msd_bin[2], (0,9))
+        np.testing.assert_array_almost_equal(msd_bin[3], (0,0))
+
+        # shring range to lose inner and outer particle
+        msd_bin,_,_ = fieldkit.simulate.msd_survival_cylinder(r, z, window=1, bins=2, range=(1,3))
+        self.assertEqual(msd_bin.shape, (2,2))
+        np.testing.assert_array_almost_equal(msd_bin[0], (0,4))
+        np.testing.assert_array_almost_equal(msd_bin[1], (0,9))
