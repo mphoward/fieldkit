@@ -28,8 +28,8 @@
 !!
 subroutine minkowski(lattice,Lx,Ly,Lz,volume,surface,curvature,euler)
 implicit none
-integer, intent(in), dimension(0:Lx-1,0:Ly-1,0:Lz-1) :: lattice
 integer, intent(in) :: Lx, Ly, Lz
+integer, intent(in), dimension(0:Lx-1,0:Ly-1,0:Lz-1) :: lattice
 integer, intent(out) :: volume, surface, curvature, euler
 
 integer, dimension(0:Lx-1,0:Ly-1,0:Lz-1) :: tmp
@@ -87,8 +87,8 @@ end subroutine
 !!
 subroutine minkowski_add_voxel(lattice,Lx,Ly,Lz,jx,jy,jz,volume,surface,curvature,euler)
 implicit none
-integer, intent(in), dimension(0:Lx-1,0:Ly-1,0:Lz-1) :: lattice
 integer, intent(in) :: Lx, Ly, Lz, jx, jy, jz
+integer, intent(in), dimension(0:Lx-1,0:Ly-1,0:Lz-1) :: lattice
 integer, intent(out) :: volume, surface, curvature, euler
 
 integer, parameter :: volume_body = 1   ! (a*a*a, where a is lattice displacement)
