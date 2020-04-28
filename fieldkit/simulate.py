@@ -4,7 +4,8 @@ from __future__ import division
 import os
 import random
 import numpy as np
-import fieldkit._simulate
+
+from . import _fieldkit
 
 def random_walk(domain, N, runs, steps, coords=None, images=None, seed=None, threads=None):
     """ Performs a simple random walk in a domain on a lattice.
@@ -102,7 +103,7 @@ def random_walk(domain, N, runs, steps, coords=None, images=None, seed=None, thr
             threads = 1
 
     # run random walk simulation
-    trajectory = fieldkit._simulate.random_walk(domain.mask, coords, images, steps, runs, seed, threads)
+    trajectory = _fieldkit.simulate.random_walk(domain.mask, coords, images, steps, runs, seed, threads)
 
     return trajectory.transpose(),coords.transpose(),images.transpose()
 
@@ -224,7 +225,7 @@ def biased_walk(domain, probs, N, runs, steps, coords=None, images=None, seed=No
             threads = 1
 
     # run random walk simulation
-    trajectory = fieldkit._simulate.biased_walk(domain.mask, cumprobs, coords, images, steps, runs, seed, threads)
+    trajectory = _fieldkit.simulate.biased_walk(domain.mask, cumprobs, coords, images, steps, runs, seed, threads)
 
     return trajectory.transpose(),coords.transpose(),images.transpose()
 
@@ -356,12 +357,72 @@ def kmc(domain, rates, samples, N, steps, coords=None, images=None, times=None, 
         raise RuntimeError('Current walker times must be less than first sample time.')
 
     # run random walk simulation
-    trajectory = fieldkit._simulate.kmc(domain.mask, cumrates, coords, images, times, samples, steps, seed, threads)
+    trajectory = _fieldkit.simulate.kmc(domain.mask, cumrates, coords, images, times, samples, steps, seed, threads)
 
     if np.any(times < samples[-1]):
         raise RuntimeError('Number of steps not sufficient to sample.')
 
     return trajectory.transpose(),coords.transpose(),images.transpose(),times
+
+def compute_hopping_rates(domain, D=None, density=None):
+    r"""Compute hopping rates for biased walk or kMC.
+
+    Computes the hopping rates consistent with a random walk having
+    spatially varying diffusivity and nonuniform density profile. Hopping
+    rates are zero outside the domain and to any site out of the domain.
+
+    Parameters
+    ----------
+    domain : :py:class:`~fieldkit.mesh.Domain`
+        The digitized domain to simulate in.
+    D : :py:class:`~fieldkit.mesh.Field` or None
+        Diffusivity on the mesh. If None, defaults to 1.0.
+    density : :py:class:`~fieldkit.mesh.Field` or None
+        Equilibrium density profile. If None, defaults to 1.0.
+
+    Returns
+    -------
+    rates : numpy.ndarray
+        A `domain.mesh.shape + [6]` array containing the hopping rates.
+
+    Notes
+    -----
+    The mesh for the `domain` is assumed to be orthorhombic, and the
+    forward (:math:`i \to i+1`) and backward (:math:`i \to i-1`) hopping rates
+    along a Cartesian axis are:
+
+    .. math::
+
+        p(i+1 | i) = \frac{D_i}{\Delta x^2} + \frac{1}{2 \Delta x}\left(D_i' + D_i \frac{\rho_i'}{\rho_i} \right)
+        p(i-1 | i) = \frac{D_i}{\Delta x^2} - \frac{1}{2 \Delta x}\left(D_i' + D_i \frac{\rho_i'}{\rho_i} \right)
+
+    where the prime denotes the first derivative with respect to the direction.
+
+    Both `D` and `density` must be greater than zero everywhere in the `domain`,
+    or an error will be raised. The hopping rates to sites that lie outside the
+    `domain` are forced to be zero, regardless of the values of `D` or `density`.
+    The derivatives are estimated by finite differences using only values within
+    the `domain`.
+
+    """
+    if D is None:
+        D_field = np.ones(domain.mesh.shape, dtype=np.float64)
+    else:
+        D_field = D.field
+
+    if density is None:
+        density_field = np.ones(domain.mesh.shape, dtype=np.float64)
+    else:
+        density_field = density.field
+
+    if np.any(D_field[domain.mask] <= 0):
+        raise ValueError('Diffusivity must be non-zero in domain.')
+
+    if np.any(density_field[domain.mask] <= 0):
+        raise ValueError('Density must be non-zero in domain.')
+
+    rates = _fieldkit.simulate.compute_rates(domain.mask, domain.mesh.step, D_field, density_field)
+    return np.moveaxis(rates, 0, -1)
 
 def msd(trajectory, window, every=1, threads=None):
     r""" Compute the mean-square displacement of a simulated trajectory.
@@ -421,7 +482,7 @@ def msd(trajectory, window, every=1, threads=None):
             threads = 1
 
     t = np.asfortranarray(np.rollaxis(trajectory,2),dtype=np.float64)
-    rsq = fieldkit._simulate.msd(t,window,every,threads)
+    rsq = _fieldkit.simulate.msd(t,window,every,threads)
     return rsq.transpose()
 
 def msd_binned(trajectory, window, axis, bins, range, every=1):
@@ -494,7 +555,7 @@ def msd_binned(trajectory, window, axis, bins, range, every=1):
 
     """
     t = np.asfortranarray(np.rollaxis(trajectory,2),dtype=np.float64)
-    rsq = fieldkit._simulate.msd_binned(t,axis,bins,range[0],range[1],window,every)
+    rsq = _fieldkit.simulate.msd_binned(t,axis,bins,range[0],range[1],window,every)
     edges = np.linspace(range[0],range[1],bins+1)
 
     return rsq.transpose(),edges
@@ -586,7 +647,7 @@ def msd_survival(trajectory, window, axis, bins, range, every=1):
 
     """
     t = np.asfortranarray(np.rollaxis(trajectory,2),dtype=np.float64)
-    rsq,counts = fieldkit._simulate.msd_survival(t,axis,bins,range[0],range[1],window,every)
+    rsq,counts = _fieldkit.simulate.msd_survival(t,axis,bins,range[0],range[1],window,every)
     rsq = np.delete(rsq, axis, 0)
     edges = np.linspace(range[0],range[1],bins+1)
 
@@ -677,7 +738,7 @@ def msd_survival_cylinder(radial, axial, window, bins, range, every=1):
     """
     r = np.asfortranarray(radial,dtype=np.float64)
     z = np.asfortranarray(axial,dtype=np.float64)
-    rsq,counts = fieldkit._simulate.msd_survival_cylinder(r,z,bins,range[0],range[1],window,every)
+    rsq,counts = _fieldkit.simulate.msd_survival_cylinder(r,z,bins,range[0],range[1],window,every)
     edges = np.linspace(range[0],range[1],bins+1)
 
     return rsq.transpose(),counts.transpose(),edges

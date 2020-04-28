@@ -4,7 +4,7 @@ from __future__ import division
 import numpy as np
 import skimage.measure
 from fieldkit.mesh import TriangulatedSurface
-import fieldkit._measure
+from . import _fieldkit
 
 def volume(field, threshold, N, seed=None):
     """ Compute the volume for a domain.
@@ -136,7 +136,7 @@ def minkowski(domain):
         raise ValueError('Voxels in mesh must be cubic for Minkowski functionals.')
 
     # minkowski functionals are computed as integers in Fortran
-    volume,area,curvature,euler = fieldkit._measure.minkowski(domain.mask)
+    volume,area,curvature,euler = _fieldkit.measure.minkowski(domain.mask)
 
     # rescale integers into mesh distance units
     a = step[0]

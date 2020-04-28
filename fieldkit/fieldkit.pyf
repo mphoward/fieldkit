@@ -1,0 +1,132 @@
+python module _fieldkit
+    interface
+        module measure
+            subroutine minkowski(lattice,lx,ly,lz,volume,surface,curvature,euler)
+                integer dimension(lx,ly,lz), intent(in) :: lattice
+                integer, optional, intent(in), check(shape(lattice,0)==lx), depend(lattice) :: lx=shape(lattice,0)
+                integer, optional, intent(in), check(shape(lattice,1)==ly), depend(lattice) :: ly=shape(lattice,1)
+                integer, optional, intent(in), check(shape(lattice,2)==lz), depend(lattice) :: lz=shape(lattice,2)
+                integer intent(out) :: volume
+                integer intent(out) :: surface
+                integer intent(out) :: curvature
+                integer intent(out) :: euler
+            end subroutine minkowski
+        end module measure
+        module simulate
+            subroutine random_walk(domain,lx,ly,lz,coord,image,traj,n,steps,runs,seed,nt)
+                use omp_lib
+                use mt19937
+                integer dimension(lx,ly,lz),intent(in) :: domain
+                integer, optional,intent(in),check(shape(domain,0)==lx),depend(domain) :: lx=shape(domain,0)
+                integer, optional,intent(in),check(shape(domain,1)==ly),depend(domain) :: ly=shape(domain,1)
+                integer, optional,intent(in),check(shape(domain,2)==lz),depend(domain) :: lz=shape(domain,2)
+                integer dimension(3,n),intent(inout) :: coord
+                integer dimension(3,n),intent(inout),depend(n) :: image
+                integer dimension(3,n,runs),intent(out),depend(n,runs) :: traj
+                integer, optional,intent(in),check(shape(coord,1)==n),depend(coord) :: n=shape(coord,1)
+                integer intent(in) :: steps
+                integer intent(in) :: runs
+                integer intent(in) :: seed
+                integer intent(in) :: nt
+                threadsafe
+            end subroutine random_walk
+            subroutine biased_walk(domain,lx,ly,lz,cumprob,coord,image,traj,n,steps,runs,seed,nt)
+                use omp_lib
+                use mt19937
+                integer dimension(lx,ly,lz),intent(in) :: domain
+                integer, optional,intent(in),check(shape(domain,0)==lx),depend(domain) :: lx=shape(domain,0)
+                integer, optional,intent(in),check(shape(domain,1)==ly),depend(domain) :: ly=shape(domain,1)
+                integer, optional,intent(in),check(shape(domain,2)==lz),depend(domain) :: lz=shape(domain,2)
+                real(kind=8) dimension(6,lx,ly,lz),intent(in),depend(lx,ly,lz) :: cumprob
+                integer dimension(3,n),intent(inout) :: coord
+                integer dimension(3,n),intent(inout),depend(n) :: image
+                integer dimension(3,n,runs),intent(out),depend(n,runs) :: traj
+                integer, optional,intent(in),check(shape(coord,1)==n),depend(coord) :: n=shape(coord,1)
+                integer intent(in) :: steps
+                integer intent(in) :: runs
+                integer intent(in) :: seed
+                integer intent(in) :: nt
+                threadsafe
+            end subroutine biased_walk
+            subroutine kmc(domain,lx,ly,lz,cumrate,coord,image,time,sampleat,traj,n,runs,steps,seed,nt)
+                use omp_lib
+                use mt19937
+                integer dimension(lx,ly,lz),intent(in) :: domain
+                integer, optional,intent(in),check(shape(domain,0)==lx),depend(domain) :: lx=shape(domain,0)
+                integer, optional,intent(in),check(shape(domain,1)==ly),depend(domain) :: ly=shape(domain,1)
+                integer, optional,intent(in),check(shape(domain,2)==lz),depend(domain) :: lz=shape(domain,2)
+                real(kind=8) dimension(6,lx,ly,lz),intent(in),depend(lx,ly,lz) :: cumrate
+                integer dimension(3,n),intent(inout) :: coord
+                integer dimension(3,n),intent(inout),depend(n) :: image
+                real(kind=8) dimension(n),intent(inout),depend(n) :: time
+                real(kind=8) dimension(runs),intent(in) :: sampleat
+                integer dimension(3,n,runs),intent(out),depend(n,runs) :: traj
+                integer, optional,intent(in),check(shape(coord,1)==n),depend(coord) :: n=shape(coord,1)
+                integer, optional,intent(in),check(len(sampleat)>=runs),depend(sampleat) :: runs=len(sampleat)
+                integer intent(in) :: steps
+                integer intent(in) :: seed
+                integer intent(in) :: nt
+                threadsafe
+            end subroutine biased_walk_rf
+            subroutine compute_rates(domain,lx,ly,lz,step,d,density,rates)
+                integer dimension(lx,ly,lz),intent(in) :: domain
+                integer, optional,intent(in),check(shape(domain,0)==lx),depend(domain) :: lx=shape(domain,0)
+                integer, optional,intent(in),check(shape(domain,1)==ly),depend(domain) :: ly=shape(domain,1)
+                integer, optional,intent(in),check(shape(domain,2)==lz),depend(domain) :: lz=shape(domain,2)
+                real(kind=8) dimension(3),intent(in) :: step
+                real(kind=8) dimension(lx,ly,lz),intent(in),depend(lx,ly,lz) :: d
+                real(kind=8) dimension(lx,ly,lz),intent(in),depend(lx,ly,lz) :: density
+                real(kind=8) dimension(6,lx,ly,lz),intent(out),depend(lx,ly,lz) :: rates
+            end subroutine compute_rates
+            subroutine msd(traj,runs,n,rsq,window,every,nt)
+                use omp_lib
+                real(kind=8) dimension(3,runs,n),intent(in) :: traj
+                integer, optional,intent(in),check(shape(traj,1)==runs),depend(traj) :: runs=shape(traj,1)
+                integer, optional,intent(in),check(shape(traj,2)==n),depend(traj) :: n=shape(traj,2)
+                real(kind=8) dimension(3,window + 1),intent(out),depend(window) :: rsq
+                integer intent(in) :: window
+                integer intent(in) :: every
+                integer intent(in) :: nt
+                threadsafe
+            end subroutine msd
+            subroutine msd_binned(traj,runs,n,axis,bins,lo,hi,rsq,window,every)
+                real(kind=8) dimension(3,runs,n),intent(in) :: traj
+                integer, optional,intent(in),check(shape(traj,1)==runs),depend(traj) :: runs=shape(traj,1)
+                integer, optional,intent(in),check(shape(traj,2)==n),depend(traj) :: n=shape(traj,2)
+                integer intent(in) :: axis
+                integer intent(in) :: bins
+                real(kind=8) intent(in) :: lo
+                real(kind=8) intent(in) :: hi
+                real(kind=8) dimension(3,window + 1,bins),intent(out),depend(window,bins) :: rsq
+                integer intent(in) :: window
+                integer intent(in) :: every
+            end subroutine msd_binned
+            subroutine msd_survival(traj,runs,n,axis,bins,lo,hi,rsq,counts,window,every)
+                real(kind=8) dimension(3,runs,n),intent(in) :: traj
+                integer, optional,intent(in),check(shape(traj,1)==runs),depend(traj) :: runs=shape(traj,1)
+                integer, optional,intent(in),check(shape(traj,2)==n),depend(traj) :: n=shape(traj,2)
+                integer intent(in) :: axis
+                integer intent(in) :: bins
+                real(kind=8) intent(in) :: lo
+                real(kind=8) intent(in) :: hi
+                real(kind=8) dimension(3,window + 1,bins),intent(out),depend(window,bins) :: rsq
+                integer dimension(window + 1,bins),intent(out),depend(window,bins) :: counts
+                integer intent(in) :: window
+                integer intent(in) :: every
+            end subroutine msd_survival
+            subroutine msd_survival_cylinder(radial,axial,runs,n,bins,lo,hi,rsq,counts,window,every)
+                real(kind=8) dimension(runs,n),intent(in) :: radial
+                real(kind=8) dimension(runs,n),intent(in),depend(runs,n) :: axial
+                integer, optional,intent(in),check(shape(radial,0)==runs),depend(radial) :: runs=shape(radial,0)
+                integer, optional,intent(in),check(shape(radial,1)==n),depend(radial) :: n=shape(radial,1)
+                integer intent(in) :: bins
+                real(kind=8) intent(in) :: lo
+                real(kind=8) intent(in) :: hi
+                real(kind=8) dimension(window + 1,bins),intent(out),depend(window,bins) :: rsq
+                integer dimension(window + 1,bins),intent(out),depend(window,bins) :: counts
+                integer intent(in) :: window
+                integer intent(in) :: every
+            end subroutine msd_survival_cylinder
+        end module simulate
+    end interface
+end python module _fieldkit

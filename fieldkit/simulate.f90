@@ -2,6 +2,15 @@
 !
 !! @author Michael P. Howard
 
+module simulate
+implicit none
+
+private
+public :: random_walk, biased_walk, kmc, compute_rates, &
+          msd, msd_binned, msd_survival, msd_survival_cylinder
+
+contains
+
 !> @brief Performs a simple lattice random walk.
 !!
 !! Every step, a walker chooses a random direction from the 6-connected
@@ -26,7 +35,6 @@ subroutine random_walk(domain,Lx,Ly,Lz,coord,image,traj,N,steps,runs,seed,Nt)
 !$f2py threadsafe
 use omp_lib
 use mt19937
-implicit none
 integer, intent(in) :: Lx,Ly,Lz,N,steps,runs,seed,Nt
 integer, intent(in), dimension(0:Lx-1,0:Ly-1,0:Lz-1) :: domain
 integer, intent(inout), dimension(0:2,0:N-1) :: coord,image
@@ -100,7 +108,6 @@ subroutine biased_walk(domain,Lx,Ly,Lz,cumprob,coord,image,traj,N,steps,runs,see
 !$f2py threadsafe
 use omp_lib
 use mt19937
-implicit none
 integer, intent(in) :: Lx,Ly,Lz,N,steps,runs,seed,Nt
 integer, intent(in), dimension(0:Lx-1,0:Ly-1,0:Lz-1) :: domain
 real(kind=8), intent(in), dimension(0:5,0:Lx-1,0:Ly-1,0:Lz-1) :: cumprob
@@ -184,7 +191,6 @@ subroutine kmc(domain,Lx,Ly,Lz,cumrate,coord,image,time,sampleat,traj,N,runs,ste
 !$f2py threadsafe
 use omp_lib
 use mt19937
-implicit none
 integer, intent(in) :: Lx,Ly,Lz,N,runs,steps,seed,Nt
 integer, intent(in), dimension(0:Lx-1,0:Ly-1,0:Lz-1) :: domain
 real(kind=8), intent(in), dimension(0:5,0:Lx-1,0:Ly-1,0:Lz-1) :: cumrate
@@ -270,6 +276,105 @@ enddo ! i
 !$omp end parallel
 end subroutine
 
+!> @brief Compute hopping rates for a biased random walk or kMC.
+!!
+!! The hopping rates are computed to be consistent with a spatially varying
+!! diffusivity and density. They are returned as a (6,Lx,Ly,Lz) array.
+!!
+!! @param[in]       domain      Integer (0 or 1) representation of the domain.
+!! @param[in]       Lx          Size of domain in x.
+!! @param[in]       Ly          Size of domain in y.
+!! @param[in]       Lz          Size of domain in z.
+!! @param[in]       step        Lattice step-size in each direction.
+!! @param[in]       D           Diffusivity on lattice.
+!! @param[in]       density     Density on lattice.
+!! @param[out]      rates       Hopping rates in each of the lattice directions.
+!!
+subroutine compute_rates(domain,Lx,Ly,Lz,step,D,density,rates)
+integer, intent(in) :: Lx, Ly, Lz
+integer, dimension(0:Lx-1,0:Ly-1,0:Lz-1), intent(in) :: domain
+real(kind=8), dimension(0:2), intent(in) :: step
+real(kind=8), dimension(0:Lx-1,0:Ly-1,0:Lz-1), intent(in) :: D,density
+real(kind=8), dimension(0:5,0:Lx-1,0:Ly-1,0:Lz-1), intent(out) :: rates
+
+integer i,j,k,m,p
+real(kind=8) D_site,dD,rho_site,drho
+
+do k = 0,Lz-1
+  do j = 0,Ly-1
+    do i = 0,Lx-1
+        ! skip site if not in domain
+        if (domain(i,j,k) == 0) then
+            rates(:,i,j,k) = 0
+            cycle
+        endif
+
+        D_site = D(i,j,k)
+        rho_site = density(i,j,k)
+
+        ! x
+        p = wrap(i+1,Lx)
+        m = wrap(i-1,Lx)
+        dD = finite_diff(D_site, D(p,j,k), D(m,j,k), step(0), domain(p,j,k), domain(m,j,k))
+        drho = finite_diff(rho_site, density(p,j,k), density(m,j,k), step(0), domain(p,j,k), domain(m,j,k))
+        call make_rates(D_site, dD, rho_site, drho, step(0), domain(p,j,k), domain(m,j,k), rates(0:1,i,j,k))
+
+        ! y
+        p = wrap(j+1,Ly)
+        m = wrap(j-1,Ly)
+        dD = finite_diff(D_site, D(i,p,k), D(i,m,k), step(1), domain(i,p,k), domain(i,m,k))
+        drho = finite_diff(rho_site, density(i,p,k), density(i,m,k), step(1), domain(i,p,k), domain(i,m,k))
+        call make_rates(D_site, dD, rho_site, drho, step(1), domain(i,p,k), domain(i,m,k), rates(2:3,i,j,k))
+
+        ! z
+        p = wrap(k+1,Lz)
+        m = wrap(k-1,Lz)
+        dD = finite_diff(D_site, D(i,j,p), D(i,j,m), step(2), domain(i,j,p), domain(i,j,m))
+        drho = finite_diff(rho_site, density(i,j,p), density(i,j,m), step(2), domain(i,j,p), domain(i,j,m))
+        call make_rates(D_site, dD, rho_site, drho, step(2), domain(i,j,p), domain(i,j,m), rates(4:5,i,j,k))
+    end do
+  end do
+end do
+end subroutine
+
+!> @brief Makes the hopping rates in 1d at a site.
+!!
+!! The forward and backward hopping rates are computed based on diffusivity,
+!! density, and their derivatives. The hopping rates also respect the domain
+!! mask, and the hopping rate out of the domain is zero. The hopping rates are
+!! guaranteed to be nonnegative.
+!!
+!! @param[in]       D           Diffusivity at site.
+!! @param[in]       dD          Derivative of diffusivity at site.
+!! @param[in]       rho         Density at site.
+!! @param[in]       drho        Derivative of density at site.
+!! @param[in]       dx          Step size.
+!! @param[in]       maskp       Mask of neighbor site in forward direction (1 or 0).
+!! @param[in]       maskm       Mask of neighbor site in backward direction (1 or 0).
+!! @param[out]      rates       Hopping rates (forward,backward).
+!!
+subroutine make_rates(D,dD,rho,drho,dx,maskp,maskm,rates)
+real(kind=8), intent(in) :: D,dD,rho,drho,dx
+integer, intent(in) :: maskp, maskm
+real(kind=8), dimension(2), intent(out) :: rates
+
+real(kind=8) r,dr
+
+r = D/dx**2
+dr = (dD+D*drho/rho)/(2*dx)
+if (maskp == 1) then
+    rates(1) = max(r+dr,0.)
+else
+    rates(1) = 0.
+end if
+
+if (maskm == 1) then
+    rates(2) = max(r-dr,0.)
+else
+    rates(2) = 0.
+end if
+end subroutine
+
 !> @brief Take a step along a direction with periodic boundary conditions.
 !!
 !! The coordinates and images are wrapped using the box, which runs from [0,L).
@@ -280,7 +385,6 @@ end subroutine
 !! @param[inout]    image       Image flags for the walker.
 !!
 subroutine take_step(dir,box,coord,image)
-implicit none
 integer, intent(in) :: dir
 integer, dimension(0:2), intent(in) :: box
 integer, dimension(0:2), intent(inout) :: coord,image
@@ -325,6 +429,59 @@ select case (dir)
 end select
 end subroutine
 
+!> @brief Wrap an integer back into the lattice.
+!!
+!! The returned value will lie in [0,L).
+!!
+!! @param[in]       x           Integer to wrap.
+!! @param[in]       L           Range for wrapping.
+!! @returns Integer wrapped in [0,L).
+!!
+pure function wrap(x, L)
+integer, intent(in) :: x,L
+integer :: wrap
+
+if (x >= L) then
+    wrap = x - L
+else if (x < 0) then
+    wrap = x + L
+else
+    wrap = x
+endif
+end function
+
+!> @brief Compute the first derivative of a function using finite difference.
+!!
+!! The difference is computed within the domain only using the forward and backward neighbors.
+!! If both neighbors are in the domain, a central difference is used.
+!! If only the forward neighbor lies in the domain, the forward difference is used.
+!! If only the backward neighbor lies in the domain, the backward difference is used.
+!! If neither lies in the domain, the derivative is zero.
+!!
+!! @param[in]       y       Value of function at site.
+!! @param[in]       yp      Value of function at forward neighbor.
+!! @param[in]       ym      Value of function at backward neighbor.
+!! @param[in]       dx      Step length between two adjacent sites.
+!! @param[in]       maskp   Mask of neighbor site in forward direction (1 or 0).
+!! @param[in]       maskm   Mask of neighbor site in backward direction (1 or 0).
+!! @returns Estimate of the first derivative of y.
+!!
+pure function finite_diff(y,yp,ym,dx,maskp,maskm)
+real(kind=8), intent(in) :: y,yp,ym,dx
+integer, intent(in) :: maskp,maskm
+real(kind=8) :: finite_diff
+
+if (maskm == 1 .and. maskp == 1) then
+    finite_diff = (yp-ym)/(2.*dx)
+else if (maskm == 0 .and. maskp == 1) then
+    finite_diff = (yp-y)/dx
+else if (maskm == 1 .and. maskp == 0) then
+    finite_diff = (y-ym)/dx
+else
+    finite_diff = 0.
+end if
+end function
+
 !> @brief Computes the mean-square displacement of a trajectory.
 !!
 !! @param[in]   traj    Trajectory to analyze.
@@ -342,7 +499,6 @@ end subroutine
 subroutine msd(traj,runs,N,rsq,window,every,Nt)
 !$f2py threadsafe
 use omp_lib
-implicit none
 integer, intent(in) :: runs,N,window,every,Nt
 real(kind=8), intent(in), dimension(0:2,0:runs-1,0:N-1) :: traj
 real(kind=8), intent(out), dimension(0:2, 0:window) :: rsq
@@ -409,7 +565,6 @@ end subroutine
 !! rsq is 3x(window+1)xbins. (The first entry are the trivial zeros.)
 !!
 subroutine msd_binned(traj,runs,N,axis,bins,lo,hi,rsq,window,every)
-implicit none
 integer, intent(in) :: runs,N,axis,bins,window,every
 real(kind=8), intent(in), dimension(0:2,0:runs-1,0:N-1) :: traj
 real(kind=8), intent(in) :: lo,hi
@@ -473,7 +628,6 @@ end subroutine
 !! rsq is 3x(window+1)xbins. (The first entry are the trivial zeros.)
 !!
 subroutine msd_survival(traj,runs,N,axis,bins,lo,hi,rsq,counts,window,every)
-implicit none
 integer, intent(in) :: runs,N,axis,bins,window,every
 real(kind=8), intent(in), dimension(0:2,0:runs-1,0:N-1) :: traj
 real(kind=8), intent(in) :: lo,hi
@@ -555,7 +709,6 @@ end subroutine
 !! rsq is (window+1)xbins. (The first entry are the trivial zeros.)
 !!
 subroutine msd_survival_cylinder(radial,axial,runs,N,bins,lo,hi,rsq,counts,window,every)
-implicit none
 integer, intent(in) :: runs,N,bins,window,every
 real(kind=8), intent(in), dimension(0:runs-1,0:N-1) :: radial,axial
 real(kind=8), intent(in) :: lo,hi
@@ -617,3 +770,4 @@ do i = 0,bins-1
     enddo
 enddo
 end subroutine
+end module

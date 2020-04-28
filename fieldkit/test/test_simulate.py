@@ -475,3 +475,93 @@ class kmcTest(unittest.TestCase):
         np.testing.assert_array_almost_equal(msd[1], (1.,1.,1.), decimal=3)
         np.testing.assert_array_almost_equal(msd[2], (2.,2.,2.), decimal=2)
         np.testing.assert_array_almost_equal(msd[3], (3.,3.,3.), decimal=2)
+
+    def test_rates(self):
+        """Test hopping rate calculator."""
+        mesh = fieldkit.Mesh().from_lattice(N=12, lattice=fieldkit.HOOMDLattice(L=12.0))
+
+        ## bias D in z
+        flags = np.logical_or(mesh.grid[...,2] < 1.0, mesh.grid[...,2] > 10)
+        D = fieldkit.Field(mesh).from_array(0.1*(11.0-mesh.grid[...,2]))
+        D[flags] = 0.
+        rho = fieldkit.Field(mesh).from_array(np.ones(mesh.shape))
+        rho[flags] = 0.
+        domain = fieldkit.domain.digitize(rho, threshold=1.e-6)
+
+        # check rates by hand for simple case
+        rates = fieldkit.simulate.compute_hopping_rates(domain, D, rho)
+        self.assertEqual(rates.shape, (12,12,12,6))
+        np.testing.assert_array_almost_equal(rates[0,0,0], (0.,0.,0.,0.,0.,0.))
+        np.testing.assert_array_almost_equal(rates[0,0,1], (1.,1.,1.,1.,0.95,0.))
+        np.testing.assert_array_almost_equal(rates[0,0,2], (0.9,0.9,0.9,0.9,0.85,0.95))
+        # ...
+        np.testing.assert_array_almost_equal(rates[0,0,9], (0.2,0.2,0.2,0.2,0.15,0.25))
+        np.testing.assert_array_almost_equal(rates[0,0,10], (0.1,0.1,0.1,0.1,0.,0.15))
+        np.testing.assert_array_almost_equal(rates[0,0,11], (0.,0.,0.,0.,0.,0.))
+        np.testing.assert_array_almost_equal(rates[0,0], rates[1,0])
+        np.testing.assert_array_almost_equal(rates[0,0], rates[0,1])
+
+        # run short simulation to verify density distribution
+        traj,_,_,_ = fieldkit.simulate.kmc(domain, rates, 100+np.arange(500), N=1000, steps=10000, seed=42)
+        self.assertEqual(np.min(traj[...,2]), 1)
+        self.assertEqual(np.max(traj[...,2]), 10)
+        hist,_ = np.histogram(traj[...,2], range=(0.5,10.5), bins=10, density=True)
+        np.testing.assert_array_almost_equal(hist, 0.1, decimal=2)
+
+        ## also bias the density in z
+        rho.field = 0.1*(mesh.grid[...,2])
+        rho[flags] = 0.
+        domain = fieldkit.domain.digitize(rho, threshold=1.e-6)
+        rates = fieldkit.simulate.compute_hopping_rates(domain, D, rho)
+        np.testing.assert_array_almost_equal(rates[0,0,0,0:4], 0.)
+        np.testing.assert_array_almost_equal(rates[0,0,1,0:4], 1.)
+        np.testing.assert_array_almost_equal(rates[0,0,10,0:4], 0.1)
+        np.testing.assert_array_almost_equal(rates[0,0,11,0:4], 0.)
+        np.testing.assert_array_almost_equal(rates[0,0], rates[1,0])
+        np.testing.assert_array_almost_equal(rates[0,0], rates[0,1])
+
+        traj,_,_,_ = fieldkit.simulate.kmc(domain, rates, 100+np.arange(500), N=1000, steps=10000, seed=42)
+        self.assertEqual(np.min(traj[...,2]), 1)
+        self.assertEqual(np.max(traj[...,2]), 10)
+        hist,_ = np.histogram(traj[...,2], range=(0.5,10.5), bins=10, density=True)
+        np.testing.assert_array_almost_equal(hist, rho.field[0,0,1:-1]/np.sum(rho.field[0,0,1:-1]), decimal=2)
+
+        ## roll axis to y
+        D.field = np.moveaxis(D.field,2,1)
+        rho.field = np.moveaxis(rho.field,2,1)
+        domain = fieldkit.domain.digitize(rho, threshold=1.e-6)
+        rates = fieldkit.simulate.compute_hopping_rates(domain, D, rho)
+        np.testing.assert_array_almost_equal(rates[0,0,0,0:2], 0.)
+        np.testing.assert_array_almost_equal(rates[0,0,0,4:6], 0.)
+        np.testing.assert_array_almost_equal(rates[0,1,0,0:2], 1.)
+        np.testing.assert_array_almost_equal(rates[0,1,0,4:6], 1.)
+        np.testing.assert_array_almost_equal(rates[0,10,0,0:2], 0.1)
+        np.testing.assert_array_almost_equal(rates[0,10,0,4:6], 0.1)
+        np.testing.assert_array_almost_equal(rates[0,11,0,0:2], 0.)
+        np.testing.assert_array_almost_equal(rates[0,11,0,4:6], 0.)
+        np.testing.assert_array_almost_equal(rates[0,:,0], rates[1,:,0])
+        np.testing.assert_array_almost_equal(rates[0,:,0], rates[0,:,1])
+
+        traj,_,_,_ = fieldkit.simulate.kmc(domain, rates, 100+np.arange(500), N=1000, steps=10000, seed=42)
+        self.assertEqual(np.min(traj[...,1]), 1)
+        self.assertEqual(np.max(traj[...,1]), 10)
+        hist,_ = np.histogram(traj[...,1], range=(0.5,10.5), bins=10, density=True)
+        np.testing.assert_array_almost_equal(hist, rho.field[0,1:-1,0]/np.sum(rho.field[0,1:-1,0]), decimal=2)
+
+        ## roll axis to z
+        D.field = np.moveaxis(D.field,1,0)
+        rho.field = np.moveaxis(rho.field,1,0)
+        domain = fieldkit.domain.digitize(rho, threshold=1.e-6)
+        rates = fieldkit.simulate.compute_hopping_rates(domain, D, rho)
+        np.testing.assert_array_almost_equal(rates[0,0,0,2:6], 0.)
+        np.testing.assert_array_almost_equal(rates[1,0,0,2:6], 1.)
+        np.testing.assert_array_almost_equal(rates[10,0,0,2:6], 0.1)
+        np.testing.assert_array_almost_equal(rates[11,0,0,2:6], 0.)
+        np.testing.assert_array_almost_equal(rates[:,0,0], rates[:,1,0])
+        np.testing.assert_array_almost_equal(rates[:,0,0], rates[:,0,1])
+
+        traj,_,_,_ = fieldkit.simulate.kmc(domain, rates, 100+np.arange(500), N=1000, steps=10000, seed=42)
+        self.assertEqual(np.min(traj[...,0]), 1)
+        self.assertEqual(np.max(traj[...,0]), 10)
+        hist,_ = np.histogram(traj[...,0], range=(0.5,10.5), bins=10, density=True)
+        np.testing.assert_array_almost_equal(hist, rho.field[1:-1,0,0]/np.sum(rho.field[1:-1,0,0]), decimal=2)

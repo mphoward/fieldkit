@@ -2,6 +2,14 @@
 !
 !! @author Michael P. Howard
 
+module measure
+implicit none
+
+private
+public :: minkowski
+
+contains
+
 !> @brief Calculates the Minkowski functionals for a 3D array.
 !!
 !! The Minkowski functionals (volume, surface area, integral mean
@@ -139,3 +147,4 @@ surface = surface_body + surface_face*nfaces
 curvature = curv_body + curv_face*nfaces + curv_edge*nedges
 euler = euler_body + euler_face*nfaces + euler_edge*nedges + euler_vertex*nvert
 end subroutine
+end module
