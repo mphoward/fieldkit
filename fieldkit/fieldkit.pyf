@@ -101,7 +101,8 @@ python module _fieldkit
                 integer intent(in) :: window
                 integer intent(in) :: every
             end subroutine msd_binned
-            subroutine msd_survival(traj,runs,n,axis,bins,lo,hi,rsq,counts,window,every)
+            subroutine msd_survival(traj,runs,n,axis,bins,lo,hi,rsq,counts,window,every,nt)
+                use omp_lib
                 real(kind=8) dimension(3,runs,n),intent(in) :: traj
                 integer, optional,intent(in),check(shape(traj,1)==runs),depend(traj) :: runs=shape(traj,1)
                 integer, optional,intent(in),check(shape(traj,2)==n),depend(traj) :: n=shape(traj,2)
@@ -113,6 +114,8 @@ python module _fieldkit
                 integer dimension(window + 1,bins),intent(out),depend(window,bins) :: counts
                 integer intent(in) :: window
                 integer intent(in) :: every
+                integer intent(in) :: nt
+                threadsafe
             end subroutine msd_survival
             subroutine msd_survival_cylinder(radial,axial,runs,n,bins,lo,hi,rsq,counts,window,every)
                 real(kind=8) dimension(runs,n),intent(in) :: radial

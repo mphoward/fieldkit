@@ -560,7 +560,7 @@ def msd_binned(trajectory, window, axis, bins, range, every=1):
 
     return rsq.transpose(),edges
 
-def msd_survival(trajectory, window, axis, bins, range, every=1):
+def msd_survival(trajectory, window, axis, bins, range, every=1, threads=None):
     r""" Compute the spatially binned mean-square displacement of a simulated trajectory.
 
     The condition mean-square displacement (MSD)
@@ -611,6 +611,10 @@ def msd_survival(trajectory, window, axis, bins, range, every=1):
         A tuple defining the lower and upper bounds of all the bins.
     every : int
         Number of runs between time origins. Default is 1.
+    threads : int or None
+        The number of OpenMP threads to use in the calculation. If None,
+        use the value of `OMP_NUM_THREADS` from the environment if it is
+        set; otherwise, default to 1.
 
     Returns
     -------
@@ -646,8 +650,15 @@ def msd_survival(trajectory, window, axis, bins, range, every=1):
     returned by :py:meth:`random_walk`.
 
     """
+    # try to get threads
+    if threads is None:
+        try:
+            threads = os.environ['OMP_NUM_THREADS']
+        except:
+            threads = 1
+
     t = np.asfortranarray(np.rollaxis(trajectory,2),dtype=np.float64)
-    rsq,counts = _fieldkit.simulate.msd_survival(t,axis,bins,range[0],range[1],window,every)
+    rsq,counts = _fieldkit.simulate.msd_survival(t,axis,bins,range[0],range[1],window,every,threads)
     rsq = np.delete(rsq, axis, 0)
     edges = np.linspace(range[0],range[1],bins+1)
 

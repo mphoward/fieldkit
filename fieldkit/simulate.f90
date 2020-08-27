@@ -622,13 +622,16 @@ end subroutine
 !! @param[out]  counts  Number of particles that survive in each bin.
 !! @param[in]   window  Time window for computing the MSD.
 !! @param[in]   every   Number of runs between time origins.
+!! @param[in]   Nt      Number of parallel threads.
 !!
 !! The traj should be a 3xrunsxN multidimensional array. The
 !! msd is evaluated over the window (inclusive), so the shape of
 !! rsq is 3x(window+1)xbins. (The first entry are the trivial zeros.)
 !!
-subroutine msd_survival(traj,runs,N,axis,bins,lo,hi,rsq,counts,window,every)
-integer, intent(in) :: runs,N,axis,bins,window,every
+subroutine msd_survival(traj,runs,N,axis,bins,lo,hi,rsq,counts,window,every,Nt)
+!$f2py threadsafe
+use omp_lib
+integer, intent(in) :: runs,N,axis,bins,window,every,Nt
 real(kind=8), intent(in), dimension(0:2,0:runs-1,0:N-1) :: traj
 real(kind=8), intent(in) :: lo,hi
 real(kind=8), intent(out), dimension(0:2,0:window,0:bins-1) :: rsq
@@ -638,31 +641,34 @@ integer, intent(out), dimension(0:window,0:bins-1) :: counts
 real(kind=8) inv_bin_width
 integer bin0,bin1
 real(kind=8), dimension(0:2) :: r0,r1,dr
-integer i,t0,dt,ax
+integer i,t0,dt,ax,tid
+real(kind=8), dimension(0:2,0:window,0:bins-1,0:Nt-1) :: rsq_
+integer, dimension(0:window,0:bins-1,0:Nt-1) :: counts_
 
 ! compute msd by iterating through trajectory
 inv_bin_width = bins/(hi-lo)
-rsq = 0.
-counts = 0
+rsq_ = 0.
+counts_ = 0
+!$omp parallel default(none), &
+!$omp private(bin0,bin1,r0,r1,dr,i,t0,dt,ax,tid), &
+!$omp shared(lo,inv_bin_width), &
+!$omp shared(counts_,rsq_,traj,runs,N,axis,bins,window,every), &
+!$omp num_threads(Nt)
+tid = omp_get_thread_num()
+!$omp do
 do i = 0,N-1
     do t0 = 0,runs-2,every
-        ! break loop if window does not fit
-        if (t0+window >= runs) then
-            exit
-        endif
-
         ! particle that starts in the bin
         r0 = traj(:,t0,i)
         bin0 = floor((r0(axis)-lo)*inv_bin_width)
         if (bin0 >= 0 .AND. bin0 < bins) then
-            counts(0,bin0) = counts(0,bin0) + 1
+            counts_(0,bin0,tid) = counts_(0,bin0,tid) + 1
         else
             ! ignore time origin if particle starts out of bin range
             cycle
         endif
 
-        ! evaluate MSD (dt guaranteed to stay in valid range)
-        do dt = 1,window
+        do dt = 1,min(window,runs-1-t0)
             ! particle must stay in bin to keep accumulating
             r1 = traj(:,t0+dt,i)
             bin1 = floor((r1(axis)-lo)*inv_bin_width)
@@ -673,19 +679,30 @@ do i = 0,N-1
             dr = r1 - r0
             do ax = 0,2
                 if (ax .ne. axis) then
-                    rsq(ax,dt,bin0) = rsq(ax,dt,bin0) + dr(ax)*dr(ax)
+                    rsq_(ax,dt,bin0,tid) = rsq_(ax,dt,bin0,tid) + dr(ax)*dr(ax)
                 endif
             enddo
-            counts(dt,bin0) = counts(dt,bin0) + 1
+            counts_(dt,bin0,tid) = counts_(dt,bin0,tid) + 1
         enddo
     enddo
 enddo
+!$omp end do
+!$omp end parallel
+
+! reduce over threads
+do i = 1,Nt-1
+    counts_(:,:,0) = counts_(:,:,0) + counts_(:,:,i)
+    rsq_(:,:,:,0) = rsq_(:,:,:,0) + rsq_(:,:,:,i)
+end do
 
 ! normalize by number of counts **starting** in the bin
 do i = 0,bins-1
     do t0 = 0,window
+        counts(t0,i) = counts_(t0,i,0)
         if (counts(0,i) > 0) then
-            rsq(:,t0,i) = rsq(:,t0,i) / counts(0,i)
+            rsq(:,t0,i) = rsq_(:,t0,i,0) / counts(0,i)
+        else
+            rsq(:,t0,i) = 0.
         endif
     enddo
 enddo
